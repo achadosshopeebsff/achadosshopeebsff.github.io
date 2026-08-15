@@ -5,9 +5,8 @@ on:
     paths:
       - "links.json"
   schedule:
-    # roda sozinho todo dia às 06:00 (horário UTC) pra manter preços atualizados
     - cron: "0 6 * * *"
-  workflow_dispatch: {} # permite rodar manualmente pela aba "Actions" do GitHub
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -31,6 +30,14 @@ jobs:
       - name: Rodar o robô e gerar products.json
         working-directory: ./scraper
         run: node scrape-all.js
+
+      - name: Guardar prints de diagnóstico (se houver)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug
+          path: debug/
+          if-no-files-found: ignore
 
       - name: Salvar products.json no repositório
         run: |
