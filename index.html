@@ -316,11 +316,12 @@
   <div class="credit">achadosshopeebsf</div>
 </footer>
 
-<script src="products.js"></script>
 <script>
-  // Os produtos são cadastrados em products.js — edite aquele arquivo
-  // pra adicionar, tirar ou mudar um produto. Nada aqui embaixo precisa
-  // ser mexido.
+  // Os produtos vêm de products.json (gerado automaticamente pelo robô
+  // em scraper/scrape-all.js via GitHub Actions toda vez que você
+  // adiciona um link em links.json). Nada aqui embaixo precisa ser mexido.
+
+  let PRODUCTS = [];
 
   const scanner = document.getElementById('scanner');
   const scanBtn = document.getElementById('scanBtn');
@@ -408,11 +409,29 @@
     `).join('');
   }
 
-  if (!PRODUCTS.length){
-    grid.innerHTML = '<p style="color:var(--muted); font-size:13px;">Nenhum produto cadastrado ainda. Adicione em products.js.</p>';
-  } else {
-    renderGrid();
+  function initGrid(){
+    if (!PRODUCTS.length){
+      grid.innerHTML = '<p style="color:var(--muted); font-size:13px;">Nenhum produto cadastrado ainda. Adicione um link em links.json e aguarde o robô rodar.</p>';
+    } else {
+      renderGrid();
+    }
   }
+
+  // Carrega os produtos reais gerados pelo robô (scraper/scrape-all.js).
+  // O "?v=" evita que o navegador use uma cópia antiga em cache.
+  fetch('products.json?v=' + Date.now())
+    .then((res) => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    })
+    .then((data) => {
+      PRODUCTS = Array.isArray(data) ? data : [];
+      initGrid();
+    })
+    .catch((err) => {
+      console.error('Não foi possível carregar products.json:', err);
+      grid.innerHTML = '<p style="color:var(--muted); font-size:13px;">Não foi possível carregar os produtos agora. Tente recarregar a página em instantes.</p>';
+    });
 </script>
 </body>
 </html>
