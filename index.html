@@ -327,16 +327,11 @@
   // image   = URL de uma imagem do produto (clique direito na foto na
   //           página da Shopee → "Copiar endereço da imagem").
   // ---------------------------------------------------------------
-  const PRODUCTS = [
-    {
-      affLink:"https://s.shopee.com.br/6L3bHKGFmD",
-      title:"Fone De Ouvido Fone Bluetooth 5.0 Fone Sem Fio Fone Gamer Fone TWS Fone Esporte Fone com Display",
-      desc:"Cole aqui a descrição real do produto, copiada da página dele na Shopee.",
-      image:"https://down-br.img.susercontent.com/file/sg-11134201-7rfgy-m96aexqaol2f4e.webp", // cole a URL da foto do produto aqui, entre aspas
-      tag:"Shopee", accent:"#ee4d2d", icon:"🛍️",
-      old:"R$ 40,52", now:"R$ 29,52", off:"-0%", rating:"veja avaliações na página"
-    }
-  ];
+  // Os produtos NÃO ficam mais escritos aqui no código.
+  // Eles são carregados automaticamente de products.json, que é
+  // gerado pelo robô do GitHub Actions a partir do que você colocar
+  // em links.json. Você só mexe em links.json — o resto é automático.
+  let PRODUCTS = [];
 
   const scanner = document.getElementById('scanner');
   const scanBtn = document.getElementById('scanBtn');
@@ -375,6 +370,10 @@
   }
 
   function reveal(){
+    if (!PRODUCTS.length){
+      alert('Os produtos ainda estão carregando (ou nenhum foi cadastrado em links.json). Tente novamente em instantes.');
+      return;
+    }
     const p = pickProduct();
     fillCard(p);
     scanner.classList.add('scanning');
@@ -397,25 +396,46 @@
     setTimeout(reveal, 380);
   });
 
-  // ---- grid de achados ----
+  // ---- carregar produtos automaticamente de products.json ----
   const grid = document.getElementById('grid');
-  const shuffled = [...PRODUCTS].sort(()=>Math.random()-0.5);
-  grid.innerHTML = shuffled.map((p) => `
-    <div class="mini">
-      <div class="mini-media" style="--mini-accent:${p.accent}">
-        ${p.image ? `<img src="${p.image}" alt="">` : p.icon}
-      </div>
-      <div class="mini-content">
-        <div class="mini-tag" style="--mini-accent:${p.accent}"><i></i>${p.tag}</div>
-        <h4>${p.title}</h4>
-        <p>${p.desc}</p>
-        <div class="mini-bottom">
-          <span class="mini-price">${p.now}</span>
-          <a class="mini-link" href="${p.affLink}" target="_blank" rel="nofollow sponsored noopener">Comprar →</a>
+
+  function renderGrid(){
+    const shuffled = [...PRODUCTS].sort(()=>Math.random()-0.5);
+    grid.innerHTML = shuffled.map((p) => `
+      <div class="mini">
+        <div class="mini-media" style="--mini-accent:${p.accent}">
+          ${p.image ? `<img src="${p.image}" alt="">` : p.icon}
+        </div>
+        <div class="mini-content">
+          <div class="mini-tag" style="--mini-accent:${p.accent}"><i></i>${p.tag}</div>
+          <h4>${p.title}</h4>
+          <p>${p.desc}</p>
+          <div class="mini-bottom">
+            <span class="mini-price">${p.now}</span>
+            <a class="mini-link" href="${p.affLink}" target="_blank" rel="nofollow sponsored noopener">Comprar →</a>
+          </div>
         </div>
       </div>
-    </div>
-  `).join('');
+    `).join('');
+  }
+
+  fetch('./products.json')
+    .then(res => {
+      if (!res.ok) throw new Error('products.json não encontrado');
+      return res.json();
+    })
+    .then(data => {
+      PRODUCTS = data;
+      if (!PRODUCTS.length){
+        grid.innerHTML = '<p style="color:var(--muted); font-size:13px;">Nenhum produto ainda. Adicione links em links.json e aguarde o robô atualizar.</p>';
+        return;
+      }
+      renderGrid();
+    })
+    .catch(err => {
+      console.error(err);
+      grid.innerHTML = '<p style="color:var(--muted); font-size:13px;">Não foi possível carregar os produtos agora. Confira se products.json existe no repositório.</p>';
+    });
 </script>
 </body>
 </html>
