@@ -1,0 +1,9 @@
+{
+  "name": "scrape-shopee",
+  "version": "1.0.0",
+  "description": "Lê os links de links.json e gera products.json com dados reais da Shopee.",
+  "main": "scrape-all.js",
+  "dependencies": {
+    "puppeteer": "^22.0.0"
+  }
+}
