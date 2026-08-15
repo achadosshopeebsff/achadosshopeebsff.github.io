@@ -79,7 +79,10 @@ async function main() {
   }
 
   const links = JSON.parse(fs.readFileSync(LINKS_FILE, 'utf-8'));
-  const browser = await puppeteer.launch({ headless: 'new' });
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
 
   const results = [];
   for (const url of links) {
