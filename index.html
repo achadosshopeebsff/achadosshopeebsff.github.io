@@ -45,12 +45,8 @@
   }
   .logo{display:flex; align-items:center; gap:10px;}
   .logo-mark{
-    width:30px; height:30px; border-radius:9px;
-    background:linear-gradient(135deg, var(--secondary), var(--primary) 55%, var(--accent));
-    position:relative; flex-shrink:0;
-  }
-  .logo-mark::after{
-    content:''; position:absolute; inset:9px; border-radius:3px; background:var(--bg);
+    width:32px; height:32px; border-radius:9px;
+    flex-shrink:0; object-fit:contain; display:block;
   }
   .logo-text{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; letter-spacing:-0.01em;}
   .nav-links{display:flex; align-items:center; gap:28px; font-size:14px; color:var(--muted);}
@@ -252,7 +248,9 @@
 <div class="wrap">
   <nav class="top">
     <div class="logo">
-      <div class="logo-mark"></div>
+      <!-- Coloque seu arquivo de logo (ex: logo.png) na mesma pasta do index.html.
+           Se o nome do arquivo for diferente, troque "logo.png" abaixo. -->
+      <img class="logo-mark" src="logo.png" alt="achadosshopeebsf" onerror="this.style.display='none'">
       <div class="logo-text">achadosshopeebsf</div>
     </div>
     <div class="nav-links">
@@ -320,18 +318,11 @@
   <div class="credit">achadosshopeebsf</div>
 </footer>
 
+<script src="products.js"></script>
 <script>
-  // ---------------------------------------------------------------
-  // COLOQUE AQUI SEUS PRODUTOS DA SHOPEE.
-  // affLink = seu link de afiliado (fica escondido, só vive no botão).
-  // image   = URL de uma imagem do produto (clique direito na foto na
-  //           página da Shopee → "Copiar endereço da imagem").
-  // ---------------------------------------------------------------
-  // Os produtos NÃO ficam mais escritos aqui no código.
-  // Eles são carregados automaticamente de products.json, que é
-  // gerado pelo robô do GitHub Actions a partir do que você colocar
-  // em links.json. Você só mexe em links.json — o resto é automático.
-  let PRODUCTS = [];
+  // Os produtos são cadastrados em products.js — edite aquele arquivo
+  // pra adicionar, tirar ou mudar um produto. Nada aqui embaixo precisa
+  // ser mexido.
 
   const scanner = document.getElementById('scanner');
   const scanBtn = document.getElementById('scanBtn');
@@ -396,7 +387,7 @@
     setTimeout(reveal, 380);
   });
 
-  // ---- carregar produtos automaticamente de products.json ----
+  // ---- exibir produtos (carregados de products.js) ----
   const grid = document.getElementById('grid');
 
   function renderGrid(){
@@ -419,23 +410,11 @@
     `).join('');
   }
 
-  fetch('./products.json')
-    .then(res => {
-      if (!res.ok) throw new Error('products.json não encontrado');
-      return res.json();
-    })
-    .then(data => {
-      PRODUCTS = data;
-      if (!PRODUCTS.length){
-        grid.innerHTML = '<p style="color:var(--muted); font-size:13px;">Nenhum produto ainda. Adicione links em links.json e aguarde o robô atualizar.</p>';
-        return;
-      }
-      renderGrid();
-    })
-    .catch(err => {
-      console.error(err);
-      grid.innerHTML = '<p style="color:var(--muted); font-size:13px;">Não foi possível carregar os produtos agora. Confira se products.json existe no repositório.</p>';
-    });
+  if (!PRODUCTS.length){
+    grid.innerHTML = '<p style="color:var(--muted); font-size:13px;">Nenhum produto cadastrado ainda. Adicione em products.js.</p>';
+  } else {
+    renderGrid();
+  }
 </script>
 </body>
 </html>
