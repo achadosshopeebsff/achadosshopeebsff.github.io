@@ -9,23 +9,27 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0b0b12;
-    --surface:#151522;
-    --surface-2:#1b1b2c;
-    --text:#f8fafc;
-    --muted:#9393ac;
-    --primary:#7c3aed;
-    --secondary:#4f46e5;
-    --accent:#22d3ee;
-    --line:rgba(248,250,252,.09);
-    --shopee:#ee4d2d;
+    --bg:#100708;
+    --surface:#1b1a1b;
+    --surface-2:#241f1f;
+    --text:#fbf8ee;
+    --muted:#b8a99c;
+    --primary:#fc5f02;
+    --secondary:#f94201;
+    --accent:#fcb00a;
+    --highlight:#fc8f06;
+    --danger:#cf1502;
+    --danger-light:#e82e05;
+    --shadow:#7c2410;
+    --line:rgba(251,248,238,.09);
+    --shopee:#fc5f02;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html{scroll-behavior:smooth;}
   body{
     background:
-      radial-gradient(880px 480px at 12% -8%, rgba(124,58,237,.16), transparent 60%),
-      radial-gradient(760px 420px at 92% 4%, rgba(34,211,238,.10), transparent 55%),
+      radial-gradient(700px 380px at 15% -8%, rgba(252,95,2,.10), transparent 60%),
+      radial-gradient(1200px 800px at 50% 20%, transparent 55%, rgba(0,0,0,.35) 100%),
       var(--bg);
     color:var(--text);
     font-family:'Inter',sans-serif;
@@ -36,12 +40,21 @@
   a{color:inherit;}
   img{max-width:100%; display:block;}
 
+  /* foco visível para navegação por teclado (acessibilidade) */
+  a:focus-visible, button:focus-visible{
+    outline:2px solid var(--accent); outline-offset:3px; border-radius:6px;
+  }
+
   .wrap{max-width:1080px; margin:0 auto; padding-inline:24px;}
 
   /* ---------- nav ---------- */
   nav.top{
     display:flex; align-items:center; justify-content:space-between;
-    padding-top:32px; position:relative; z-index:3;
+    padding-top:32px; padding-bottom:22px; position:relative; z-index:3;
+  }
+  nav.top::after{
+    content:''; position:absolute; left:0; right:0; bottom:0; height:1px;
+    background:linear-gradient(90deg, transparent, var(--line) 20%, var(--line) 80%, transparent);
   }
   .logo{display:flex; align-items:center; gap:10px;}
   .logo-mark{
@@ -59,16 +72,16 @@
     display:inline-flex; align-items:center; gap:8px;
     font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.13em;
     text-transform:uppercase; color:var(--accent); margin-bottom:22px;
-    border:1px solid rgba(34,211,238,.28); background:rgba(34,211,238,.06);
+    border:1px solid rgba(252,176,10,.28); background:rgba(252,176,10,.07);
     padding:7px 14px 7px 10px; border-radius:999px;
   }
   .eyebrow .live{
     width:6px; height:6px; border-radius:50%; background:var(--accent);
-    box-shadow:0 0 0 0 rgba(34,211,238,.6); animation:live 1.8s ease-out infinite;
+    box-shadow:0 0 0 0 rgba(252,176,10,.6); animation:live 1.8s ease-out infinite;
   }
   @keyframes live{
-    0%{box-shadow:0 0 0 0 rgba(34,211,238,.55);}
-    100%{box-shadow:0 0 0 8px rgba(34,211,238,0);}
+    0%{box-shadow:0 0 0 0 rgba(252,176,10,.55);}
+    100%{box-shadow:0 0 0 8px rgba(252,176,10,0);}
   }
   h1{
     font-family:'Space Grotesk',sans-serif; font-weight:700; line-height:1.08;
@@ -92,6 +105,7 @@
     position:absolute; inset:0; border-radius:50%;
     background:conic-gradient(from 0deg, var(--secondary), var(--primary), var(--accent), var(--secondary));
     animation:spin 5s linear infinite;
+    will-change:transform;
   }
   .scanner.scanning .ring{animation-duration:.7s;}
   .scanner .ring-mask{
@@ -118,7 +132,7 @@
   }
   .pulse-dot{
     position:absolute; width:9px; height:9px; border-radius:50%; background:var(--accent);
-    top:6px; right:26px; box-shadow:0 0 12px 2px rgba(34,211,238,.7);
+    top:6px; right:26px; box-shadow:0 0 12px 2px rgba(252,176,10,.7);
     opacity:0; transition:opacity .2s;
   }
   .scanner.scanning .pulse-dot{opacity:1;}
@@ -126,10 +140,10 @@
   /* ---------- reveal card ---------- */
   .reveal-stage{max-width:600px; margin:8px auto 0; position:relative; z-index:2; min-height:20px;}
   .card{
-    background:rgba(21,21,34,.7); backdrop-filter:blur(18px);
-    border:1px solid var(--line); border-radius:24px; overflow:hidden;
+    background:var(--surface);
+    border:1px solid var(--line); border-radius:28px; overflow:hidden;
     opacity:0; transform:translateY(16px) scale(.98);
-    transition:opacity .5s ease, transform .5s cubic-bezier(.2,.8,.2,1);
+    transition:opacity .4s ease, transform .4s cubic-bezier(.2,.8,.2,1);
   }
   .card.show{opacity:1; transform:translateY(0) scale(1);}
   .card-bar{height:3px; background:linear-gradient(90deg, var(--secondary), var(--primary), var(--accent));}
@@ -155,19 +169,27 @@
   .price-row{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;}
   .price{font-family:'JetBrains Mono',monospace; display:flex; align-items:baseline; gap:8px;}
   .price .old{color:var(--muted); text-decoration:line-through; font-size:13px;}
-  .price .now{color:var(--text); font-size:23px; font-weight:700;}
+  .price .now{color:var(--accent); font-size:23px; font-weight:700;}
   .price .off{
-    font-size:11.5px; font-weight:600; color:var(--accent);
-    background:rgba(34,211,238,.12); padding:3px 8px; border-radius:6px;
+    font-size:11.5px; font-weight:700; color:var(--danger-light);
+    background:rgba(232,46,5,.14); padding:3px 8px; border-radius:6px;
   }
   .cta{
     display:inline-flex; align-items:center; gap:8px;
-    background:linear-gradient(120deg, var(--secondary), var(--primary));
-    color:#fff; text-decoration:none; font-weight:600; font-size:14.5px;
-    padding:13px 24px; border-radius:999px; transition:transform .15s ease, box-shadow .25s ease;
-    white-space:nowrap; box-shadow:0 14px 26px -12px rgba(124,58,237,.6);
+    background:var(--secondary);
+    color:var(--bg); text-decoration:none; font-weight:700; font-size:14.5px;
+    padding:13px 24px; border-radius:999px; transition:transform .15s ease, box-shadow .2s ease, background-color .2s ease;
+    white-space:nowrap; box-shadow:0 10px 20px -10px rgba(249,66,1,.55);
+    position:relative; overflow:hidden;
   }
-  .cta:hover{transform:translateY(-2px); box-shadow:0 18px 32px -12px rgba(124,58,237,.75);}
+  .cta::before{
+    content:''; position:absolute; top:0; left:-60%; width:40%; height:100%;
+    background:linear-gradient(115deg, transparent, rgba(255,255,255,.4), transparent);
+    transform:skewX(-18deg); transition:left .55s ease;
+  }
+  .cta:hover::before{left:120%;}
+  .cta:hover{transform:translateY(-2px); background:var(--primary); box-shadow:0 14px 26px -10px rgba(249,66,1,.65);}
+  .cta:active{transform:translateY(0) scale(.97);}
   .again{
     display:block; margin:18px auto 0; background:none; border:1px solid var(--line);
     color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:12px;
@@ -194,16 +216,18 @@
     display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:16px;
   }
   .mini{
-    background:var(--surface); border:1px solid var(--line); border-radius:18px;
+    background:var(--surface); border:1px solid var(--line); border-radius:20px;
     overflow:hidden; display:flex; flex-direction:column;
     transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease;
   }
-  .mini:hover{transform:translateY(-3px); border-color:rgba(124,58,237,.5); box-shadow:0 16px 34px -18px rgba(124,58,237,.5);}
+  .mini:hover{transform:translateY(-3px); border-color:rgba(252,95,2,.5); box-shadow:0 14px 28px -18px rgba(252,95,2,.45);}
   .mini-media{
     height:130px; background:var(--mini-accent, var(--accent));
     display:flex; align-items:center; justify-content:center; font-size:30px; position:relative;
+    overflow:hidden;
   }
-  .mini-media img{width:100%; height:100%; object-fit:cover;}
+  .mini-media img{width:100%; height:100%; object-fit:cover; transition:transform .35s ease;}
+  .mini:hover .mini-media img{transform:scale(1.06);}
   .mini-content{padding:18px; display:flex; flex-direction:column; gap:9px; flex:1;}
   .mini-tag{
     display:flex; align-items:center; gap:6px;
@@ -316,12 +340,11 @@
   <div class="credit">achadosshopeebsf</div>
 </footer>
 
+<script src="products.js"></script>
 <script>
-  // Os produtos vêm de products.json (gerado automaticamente pelo robô
-  // em scraper/scrape-all.js via GitHub Actions toda vez que você
-  // adiciona um link em links.json). Nada aqui embaixo precisa ser mexido.
-
-  let PRODUCTS = [];
+  // Os produtos são cadastrados em products.js — edite aquele arquivo
+  // pra adicionar, tirar ou mudar um produto. Nada aqui embaixo precisa
+  // ser mexido.
 
   const scanner = document.getElementById('scanner');
   const scanBtn = document.getElementById('scanBtn');
@@ -394,7 +417,7 @@
     grid.innerHTML = shuffled.map((p) => `
       <div class="mini">
         <div class="mini-media" style="--mini-accent:${p.accent}">
-          ${p.image ? `<img src="${p.image}" alt="">` : p.icon}
+          ${p.image ? `<img src="${p.image}" alt="" loading="lazy" decoding="async">` : p.icon}
         </div>
         <div class="mini-content">
           <div class="mini-tag" style="--mini-accent:${p.accent}"><i></i>${p.tag}</div>
@@ -409,29 +432,11 @@
     `).join('');
   }
 
-  function initGrid(){
-    if (!PRODUCTS.length){
-      grid.innerHTML = '<p style="color:var(--muted); font-size:13px;">Nenhum produto cadastrado ainda. Adicione um link em links.json e aguarde o robô rodar.</p>';
-    } else {
-      renderGrid();
-    }
+  if (!PRODUCTS.length){
+    grid.innerHTML = '<p style="color:var(--muted); font-size:13px;">Nenhum produto cadastrado ainda. Adicione em products.js.</p>';
+  } else {
+    renderGrid();
   }
-
-  // Carrega os produtos reais gerados pelo robô (scraper/scrape-all.js).
-  // O "?v=" evita que o navegador use uma cópia antiga em cache.
-  fetch('products.json?v=' + Date.now())
-    .then((res) => {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.json();
-    })
-    .then((data) => {
-      PRODUCTS = Array.isArray(data) ? data : [];
-      initGrid();
-    })
-    .catch((err) => {
-      console.error('Não foi possível carregar products.json:', err);
-      grid.innerHTML = '<p style="color:var(--muted); font-size:13px;">Não foi possível carregar os produtos agora. Tente recarregar a página em instantes.</p>';
-    });
 </script>
 </body>
 </html>
