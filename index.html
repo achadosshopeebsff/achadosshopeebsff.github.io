@@ -6,14 +6,14 @@
 <title>achadosshopeebsf — radar de achados Shopee</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#100708;
     --surface:#1b1a1b;
     --surface-2:#241f1f;
     --text:#fbf8ee;
-    --muted:#b8a99c;
+    --muted:#c2b3a5;
     --primary:#fc5f02;
     --secondary:#f94201;
     --accent:#fcb00a;
@@ -21,59 +21,118 @@
     --danger:#cf1502;
     --danger-light:#e82e05;
     --shadow:#7c2410;
-    --line:rgba(251,248,238,.09);
+    --line:rgba(251,248,238,.14);
     --shopee:#fc5f02;
+
+    /* vidro */
+    --glass-bg:rgba(27,26,27,.42);
+    --glass-bg-strong:rgba(27,26,27,.62);
+    --glass-border:rgba(251,248,238,.16);
+    --glass-hi:rgba(255,255,255,.18);
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html{scroll-behavior:smooth;}
   body{
-    background:
-      radial-gradient(700px 380px at 15% -8%, rgba(252,95,2,.10), transparent 60%),
-      radial-gradient(1200px 800px at 50% 20%, transparent 55%, rgba(0,0,0,.35) 100%),
-      var(--bg);
+    background:var(--bg);
     color:var(--text);
     font-family:'Inter',sans-serif;
     -webkit-font-smoothing:antialiased;
     min-height:100vh;
+    overflow-x:hidden;
+    position:relative;
   }
   ::selection{background:var(--primary); color:#fff;}
   a{color:inherit;}
   img{max-width:100%; display:block;}
 
-  /* foco visível para navegação por teclado (acessibilidade) */
   a:focus-visible, button:focus-visible{
     outline:2px solid var(--accent); outline-offset:3px; border-radius:6px;
   }
 
-  .wrap{max-width:1080px; margin:0 auto; padding-inline:24px;}
-
-  /* ---------- nav ---------- */
-  nav.top{
-    display:flex; align-items:center; justify-content:space-between;
-    padding-top:32px; padding-bottom:22px; position:relative; z-index:3;
+  /* ---------- blobs de luz atrás do vidro ---------- */
+  .blobs{position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none;}
+  .blob{
+    position:absolute; border-radius:50%; filter:blur(90px);
+    opacity:.55; will-change:transform;
   }
-  nav.top::after{
-    content:''; position:absolute; left:0; right:0; bottom:0; height:1px;
-    background:linear-gradient(90deg, transparent, var(--line) 20%, var(--line) 80%, transparent);
+  .blob-1{
+    width:560px; height:560px; top:-180px; left:-120px;
+    background:radial-gradient(circle, var(--primary), transparent 70%);
+    animation:float1 26s ease-in-out infinite;
+  }
+  .blob-2{
+    width:480px; height:480px; top:120px; right:-160px;
+    background:radial-gradient(circle, var(--danger-light), transparent 70%);
+    animation:float2 30s ease-in-out infinite;
+  }
+  .blob-3{
+    width:520px; height:520px; bottom:-220px; left:18%;
+    background:radial-gradient(circle, var(--accent), transparent 70%);
+    opacity:.4;
+    animation:float3 34s ease-in-out infinite;
+  }
+  .blob-4{
+    width:380px; height:380px; bottom:8%; right:8%;
+    background:radial-gradient(circle, var(--shadow), transparent 70%);
+    opacity:.5;
+    animation:float1 22s ease-in-out infinite reverse;
+  }
+  @keyframes float1{
+    0%,100%{transform:translate(0,0) scale(1);}
+    50%{transform:translate(40px,50px) scale(1.08);}
+  }
+  @keyframes float2{
+    0%,100%{transform:translate(0,0) scale(1);}
+    50%{transform:translate(-50px,30px) scale(.95);}
+  }
+  @keyframes float3{
+    0%,100%{transform:translate(0,0) scale(1);}
+    50%{transform:translate(30px,-40px) scale(1.06);}
+  }
+
+  .wrap{max-width:1080px; margin:0 auto; padding-inline:24px; position:relative; z-index:2;}
+
+  /* ---------- utilitário de vidro ---------- */
+  .glass{
+    background:var(--glass-bg);
+    backdrop-filter:blur(22px) saturate(160%);
+    -webkit-backdrop-filter:blur(22px) saturate(160%);
+    border:1px solid var(--glass-border);
+    box-shadow:
+      inset 0 1px 0 var(--glass-hi),
+      0 20px 50px -20px rgba(0,0,0,.6);
+  }
+
+  /* ---------- nav (pílula flutuante) ---------- */
+  nav.top{
+    max-width:1080px; margin:24px auto 0; padding:24px;
+    position:sticky; top:16px; z-index:20;
+  }
+  .nav-pill{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 18px 10px 10px; border-radius:999px;
   }
   .logo{display:flex; align-items:center; gap:10px;}
   .logo-mark{
-    width:150px; height:150px; border-radius:1000px;
-    flex-shrink:0; object-fit:contain; display:block;
+    width:44px; height:44px; border-radius:1000px;
+    flex-shrink:0; object-fit:cover; display:block;
+    border:1px solid var(--glass-border);
   }
-  .nav-links{display:flex; align-items:center; gap:28px; font-size:14px; color:var(--muted);}
-  .nav-links a{text-decoration:none; transition:color .2s;}
-  .nav-links a:hover{color:var(--text);}
+  .nav-links{display:flex; align-items:center; gap:6px; font-size:14px; color:var(--muted);}
+  .nav-links a{
+    text-decoration:none; transition:color .2s, background-color .2s;
+    padding:9px 16px; border-radius:999px;
+  }
+  .nav-links a:hover{color:var(--text); background:rgba(251,248,238,.06);}
   @media (max-width:640px){ .nav-links{display:none;} }
 
   /* ---------- hero ---------- */
-  .hero{padding:76px 0 10px; text-align:center; position:relative; z-index:2;}
+  .hero{padding:64px 0 10px; text-align:center; position:relative; z-index:2;}
   .eyebrow{
     display:inline-flex; align-items:center; gap:8px;
     font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.13em;
-    text-transform:uppercase; color:var(--accent); margin-bottom:22px;
-    border:1px solid rgba(252,176,10,.28); background:rgba(252,176,10,.07);
-    padding:7px 14px 7px 10px; border-radius:999px;
+    text-transform:uppercase; color:var(--accent); margin-bottom:24px;
+    padding:8px 16px 8px 12px; border-radius:999px;
   }
   .eyebrow .live{
     width:6px; height:6px; border-radius:50%; background:var(--accent);
@@ -84,21 +143,21 @@
     100%{box-shadow:0 0 0 8px rgba(252,176,10,0);}
   }
   h1{
-    font-family:'Space Grotesk',sans-serif; font-weight:700; line-height:1.08;
-    font-size:clamp(32px,5.4vw,54px); letter-spacing:-0.02em; margin-bottom:18px;
+    font-family:'Space Grotesk',sans-serif; font-weight:800; line-height:1.05;
+    font-size:clamp(34px,6vw,60px); letter-spacing:-0.02em; margin-bottom:20px;
   }
   h1 .grad{
     background:linear-gradient(100deg, var(--primary), var(--accent) 85%);
     -webkit-background-clip:text; background-clip:text; color:transparent;
   }
   .sub{
-    max-width:480px; margin:0 auto 52px; color:var(--muted);
-    font-size:16px; line-height:1.65;
+    max-width:480px; margin:0 auto 56px; color:var(--muted);
+    font-size:16.5px; line-height:1.65;
   }
 
-  /* ---------- scanner (signature element) ---------- */
+  /* ---------- scanner (elemento de assinatura) ---------- */
   .scanner{
-    width:216px; height:216px; margin:0 auto 22px; position:relative;
+    width:224px; height:224px; margin:0 auto 26px; position:relative;
     display:flex; align-items:center; justify-content:center;
   }
   .scanner .ring{
@@ -106,53 +165,61 @@
     background:conic-gradient(from 0deg, var(--secondary), var(--primary), var(--accent), var(--secondary));
     animation:spin 5s linear infinite;
     will-change:transform;
+    filter:blur(.3px);
   }
   .scanner.scanning .ring{animation-duration:.7s;}
   .scanner .ring-mask{
-    position:absolute; inset:3px; border-radius:50%; background:var(--bg);
+    position:absolute; inset:4px; border-radius:50%;
+    background:var(--bg);
   }
   @keyframes spin{to{transform:rotate(360deg);}}
   .scan-btn{
-    position:relative; z-index:2; width:176px; height:176px; border-radius:50%;
-    background:radial-gradient(circle at 32% 28%, var(--surface-2), var(--surface) 70%);
-    border:none; cursor:pointer; color:var(--text);
+    position:relative; z-index:2; width:180px; height:180px; border-radius:50%;
+    background:var(--glass-bg-strong);
+    backdrop-filter:blur(18px) saturate(160%); -webkit-backdrop-filter:blur(18px) saturate(160%);
+    border:1px solid var(--glass-border);
+    box-shadow:inset 0 1px 0 var(--glass-hi), inset 0 -18px 30px -20px rgba(0,0,0,.5);
+    cursor:pointer; color:var(--text);
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
     transition:transform .15s ease;
+  }
+  .scan-btn::before{
+    content:''; position:absolute; top:10%; left:18%; width:46%; height:26%;
+    background:radial-gradient(ellipse, rgba(255,255,255,.28), transparent 70%);
+    border-radius:50%; pointer-events:none;
   }
   .scan-btn:hover{transform:scale(1.03);}
   .scan-btn:active{transform:scale(.97);}
   .scan-btn:disabled{cursor:default;}
   .scan-btn svg{width:30px; height:30px; stroke:var(--accent);}
-  .scan-btn span{
-    font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:14.5px;
-  }
+  .scan-btn span{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:14.5px;}
   .scan-btn small{
     font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted);
     letter-spacing:.08em; text-transform:uppercase;
   }
   .pulse-dot{
     position:absolute; width:9px; height:9px; border-radius:50%; background:var(--accent);
-    top:6px; right:26px; box-shadow:0 0 12px 2px rgba(252,176,10,.7);
+    top:8px; right:28px; box-shadow:0 0 12px 2px rgba(252,176,10,.7);
     opacity:0; transition:opacity .2s;
   }
   .scanner.scanning .pulse-dot{opacity:1;}
 
-  /* ---------- reveal card ---------- */
+  /* ---------- card de revelação ---------- */
   .reveal-stage{max-width:600px; margin:8px auto 0; position:relative; z-index:2; min-height:20px;}
   .card{
-    background:var(--surface);
-    border:1px solid var(--line); border-radius:28px; overflow:hidden;
-    opacity:0; transform:translateY(16px) scale(.98);
-    transition:opacity .4s ease, transform .4s cubic-bezier(.2,.8,.2,1);
+    border-radius:32px; overflow:hidden;
+    opacity:0; transform:translateY(18px) scale(.97);
+    transition:opacity .45s ease, transform .45s cubic-bezier(.2,.8,.2,1);
   }
   .card.show{opacity:1; transform:translateY(0) scale(1);}
   .card-bar{height:3px; background:linear-gradient(90deg, var(--secondary), var(--primary), var(--accent));}
-  .card-body{padding:28px;}
+  .card-body{padding:30px;}
   .card-top{display:flex; gap:18px; align-items:flex-start;}
   .thumb{
-    flex:0 0 86px; width:86px; height:86px; border-radius:16px; overflow:hidden;
+    flex:0 0 88px; width:88px; height:88px; border-radius:20px; overflow:hidden;
     background:var(--card-accent, var(--accent)); display:flex; align-items:center; justify-content:center;
-    font-size:32px; box-shadow:0 12px 26px -10px var(--card-accent, var(--accent));
+    font-size:32px; box-shadow:0 14px 28px -12px var(--card-accent, var(--accent));
+    border:1px solid var(--glass-hi);
   }
   .thumb img{width:100%; height:100%; object-fit:cover;}
   .card-head{flex:1; min-width:0;}
@@ -162,72 +229,68 @@
     text-transform:uppercase; color:var(--muted); margin-bottom:9px;
   }
   .tag i{width:6px; height:6px; border-radius:50%; background:var(--card-accent, var(--accent));}
-  .card h3{font-family:'Space Grotesk',sans-serif; font-size:19px; font-weight:600; margin-bottom:5px; line-height:1.3;}
+  .card h3{font-family:'Space Grotesk',sans-serif; font-size:19.5px; font-weight:700; margin-bottom:6px; line-height:1.3;}
   .stars{color:var(--accent); font-size:13px; letter-spacing:1px;}
   .stars span{color:var(--muted); font-family:'Inter',sans-serif; letter-spacing:0; margin-left:6px; font-size:12.5px;}
-  .desc{color:var(--muted); font-size:14.5px; line-height:1.65; margin:18px 0 22px;}
+  .desc{color:var(--muted); font-size:14.5px; line-height:1.65; margin:18px 0 24px;}
   .price-row{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;}
   .price{font-family:'JetBrains Mono',monospace; display:flex; align-items:baseline; gap:8px;}
   .price .old{color:var(--muted); text-decoration:line-through; font-size:13px;}
-  .price .now{color:var(--accent); font-size:23px; font-weight:700;}
+  .price .now{color:var(--accent); font-size:24px; font-weight:700;}
   .price .off{
     font-size:11.5px; font-weight:700; color:var(--danger-light);
-    background:rgba(232,46,5,.14); padding:3px 8px; border-radius:6px;
+    background:rgba(232,46,5,.16); padding:4px 9px; border-radius:7px;
   }
   .cta{
     display:inline-flex; align-items:center; gap:8px;
     background:var(--secondary);
     color:var(--bg); text-decoration:none; font-weight:700; font-size:14.5px;
-    padding:13px 24px; border-radius:999px; transition:transform .15s ease, box-shadow .2s ease, background-color .2s ease;
-    white-space:nowrap; box-shadow:0 10px 20px -10px rgba(249,66,1,.55);
+    padding:14px 26px; border-radius:999px; transition:transform .15s ease, box-shadow .2s ease, background-color .2s ease;
+    white-space:nowrap; box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 12px 24px -10px rgba(249,66,1,.6);
     position:relative; overflow:hidden;
   }
   .cta::before{
     content:''; position:absolute; top:0; left:-60%; width:40%; height:100%;
-    background:linear-gradient(115deg, transparent, rgba(255,255,255,.4), transparent);
+    background:linear-gradient(115deg, transparent, rgba(255,255,255,.45), transparent);
     transform:skewX(-18deg); transition:left .55s ease;
   }
-  .cta:hover::before{left:120%;}
-  .cta:hover{transform:translateY(-2px); background:var(--primary); box-shadow:0 14px 26px -10px rgba(249,66,1,.65);}
-  .cta:active{transform:translateY(0) scale(.97);}
+  .cta:hover::before{left:130%;}
+  .cta:hover{transform:translateY(-2px); background:var(--primary);}
   .again{
-    display:block; margin:18px auto 0; background:none; border:1px solid var(--line);
+    display:block; margin:20px auto 0; background:none; border:1px solid var(--glass-border);
     color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:12px;
     padding:10px 18px; border-radius:999px; cursor:pointer; letter-spacing:.04em;
-    transition:border-color .2s, color .2s;
+    transition:border-color .2s, color .2s, background-color .2s;
   }
-  .again:hover{border-color:var(--accent); color:var(--text);}
+  .again:hover{border-color:var(--accent); color:var(--text); background:rgba(251,248,238,.05);}
 
   .placeholder-note{
-    text-align:center; font-size:12px; color:var(--muted); opacity:.6; margin-top:14px;
+    text-align:center; font-size:12px; color:var(--muted); opacity:.6; margin-top:16px;
     font-family:'JetBrains Mono',monospace;
   }
 
   /* ---------- grid ---------- */
   .section-head{
-    max-width:1080px; margin:110px auto 24px; padding:0 24px;
+    max-width:1080px; margin:120px auto 26px; padding:0 24px; position:relative; z-index:2;
     display:flex; align-items:baseline; justify-content:space-between; gap:16px;
   }
-  .section-head h2{font-family:'Space Grotesk',sans-serif; font-size:21px; font-weight:600;}
+  .section-head h2{font-family:'Space Grotesk',sans-serif; font-size:22px; font-weight:700;}
   .section-head span{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted);}
 
   .grid{
-    max-width:1080px; margin:0 auto; padding:0 24px 110px;
-    display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:16px;
+    max-width:1080px; margin:0 auto; padding:0 24px 120px; position:relative; z-index:2;
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(232px,1fr)); gap:18px;
   }
   .mini{
-    background:var(--surface); border:1px solid var(--line); border-radius:20px;
-    overflow:hidden; display:flex; flex-direction:column;
-    transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+    border-radius:24px; overflow:hidden; display:flex; flex-direction:column;
+    transition:transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s ease;
   }
-  .mini:hover{transform:translateY(-3px); border-color:rgba(252,95,2,.5); box-shadow:0 14px 28px -18px rgba(252,95,2,.45);}
+  .mini:hover{transform:translateY(-5px);}
   .mini-media{
-    height:130px; background:var(--mini-accent, var(--accent));
+    height:132px; background:var(--mini-accent, var(--accent));
     display:flex; align-items:center; justify-content:center; font-size:30px; position:relative;
-    overflow:hidden;
   }
-  .mini-media img{width:100%; height:100%; object-fit:cover; transition:transform .35s ease;}
-  .mini:hover .mini-media img{transform:scale(1.06);}
+  .mini-media img{width:100%; height:100%; object-fit:cover;}
   .mini-content{padding:18px; display:flex; flex-direction:column; gap:9px; flex:1;}
   .mini-tag{
     display:flex; align-items:center; gap:6px;
@@ -235,54 +298,70 @@
     text-transform:uppercase; color:var(--muted);
   }
   .mini-tag i{width:5px; height:5px; border-radius:50%; background:var(--mini-accent, var(--accent));}
-  .mini h4{font-family:'Space Grotesk',sans-serif; font-size:14.5px; font-weight:600; line-height:1.3;}
+  .mini h4{font-family:'Space Grotesk',sans-serif; font-size:14.5px; font-weight:700; line-height:1.3;}
   .mini p{color:var(--muted); font-size:12.5px; line-height:1.55;
     display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
   .mini-bottom{
     margin-top:auto; display:flex; align-items:center; justify-content:space-between; gap:10px; padding-top:4px;
   }
-  .mini-price{font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600;}
+  .mini-price{font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; color:var(--accent);}
   .mini-link{
-    font-size:12.5px; font-weight:600; text-decoration:none; color:var(--accent);
+    font-size:12.5px; font-weight:700; text-decoration:none; color:var(--primary);
     display:inline-flex; align-items:center; gap:4px; transition:gap .15s ease;
   }
   .mini-link:hover{gap:7px;}
 
   /* ---------- footer ---------- */
   footer{
-    max-width:1080px; margin:0 auto; padding:36px 24px 56px;
-    border-top:1px solid var(--line); text-align:center;
+    max-width:1080px; margin:0 40px 56px; padding:36px 24px; position:relative; z-index:2;
+    border-radius:32px; text-align:center;
   }
+  @media (min-width:1120px){ footer{margin-inline:auto;} }
   .shopee-badge{
     display:inline-flex; align-items:center; gap:7px; margin-bottom:16px;
-    border:1px solid rgba(238,77,45,.4); color:var(--shopee);
+    border:1px solid rgba(252,95,2,.4); color:var(--shopee);
     font-family:'JetBrains Mono',monospace; font-weight:600; font-size:11.5px; letter-spacing:.05em;
-    padding:7px 14px; border-radius:999px; text-transform:uppercase;
+    padding:8px 15px; border-radius:999px; text-transform:uppercase;
   }
   .shopee-badge svg{width:13px; height:13px;}
   footer p{color:var(--muted); font-size:12.5px; line-height:1.7; max-width:540px; margin:0 auto;}
   footer .credit{font-family:'Space Grotesk',sans-serif; font-size:12.5px; color:var(--muted); margin-top:18px;}
 
-  @media (prefers-reduced-motion:reduce){ *{animation:none !important; transition:none !important;} }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none !important; transition:none !important;}
+  }
+
+  @media (max-width:640px){
+    .card-body{padding:22px;}
+    footer{margin-inline:20px;}
+  }
 </style>
 </head>
 <body>
 
-<div class="wrap">
-  <nav class="top">
+<div class="blobs">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="blob blob-4"></div>
+</div>
+
+<nav class="top">
+  <div class="nav-pill glass">
     <div class="logo">
-      <!-- Coloque seu arquivo de logo (ex: logo.png) na mesma pasta do index.html.
-           Se o nome do arquivo for diferente, troque "logo.png" abaixo. -->
+      <!-- Coloque seu arquivo de logo (ex: logo.png) na mesma pasta do index.html. -->
       <img class="logo-mark" src="logo.png" alt="achadosshopeebsf" onerror="this.style.display='none'">
     </div>
     <div class="nav-links">
       <a href="#scan">Escanear</a>
       <a href="#achados">Achados</a>
     </div>
-  </nav>
+  </div>
+</nav>
 
+<div class="wrap">
   <section class="hero" id="scan">
-    <div class="eyebrow"><span class="live"></span> radar de achados · shopee</div>
+    <div class="eyebrow glass"><span class="live"></span> radar de achados · shopee</div>
     <h1>Encontre seu próximo<br><span class="grad">achado</span> em segundos.</h1>
     <p class="sub">Escaneie e receba um produto selecionado da Shopee agora — foto real, descrição e botão de compra. O link fica escondido, só o achado aparece.</p>
 
@@ -298,7 +377,7 @@
     </div>
 
     <div class="reveal-stage">
-      <div class="card" id="card">
+      <div class="card glass" id="card">
         <div class="card-bar"></div>
         <div class="card-body">
           <div class="card-top">
@@ -321,7 +400,7 @@
       </div>
       <button class="again" id="againBtn" style="display:none;">↻ escanear outro achado</button>
     </div>
-    <p class="placeholder-note">Preencha os produtos reais no código — veja o array PRODUCTS no final do arquivo.</p>
+    <p class="placeholder-note">Os produtos são carregados automaticamente de products.json.</p>
   </section>
 </div>
 
@@ -331,25 +410,28 @@
 </div>
 <div class="grid" id="grid"></div>
 
-<footer>
-  <div class="shopee-badge">
-    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 8V6a5 5 0 0 1 10 0v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="4" y="8" width="16" height="12" rx="2.5" stroke="currentColor" stroke-width="2"/></svg>
-    produtos shopee
-  </div>
-  <p>Este site contém links de afiliado da Shopee. Ao clicar e comprar através deles, podemos receber uma pequena comissão — sem nenhum custo adicional para você. Preços e disponibilidade podem mudar; confira sempre os detalhes finais na página do produto na Shopee.</p>
-  <div class="credit">achadosshopeebsf</div>
-</footer>
+<div class="wrap">
+  <footer class="glass">
+    <div class="shopee-badge">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 8V6a5 5 0 0 1 10 0v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="4" y="8" width="16" height="12" rx="2.5" stroke="currentColor" stroke-width="2"/></svg>
+      produtos shopee
+    </div>
+    <p>Este site contém links de afiliado da Shopee. Ao clicar e comprar através deles, podemos receber uma pequena comissão — sem nenhum custo adicional para você. Preços e disponibilidade podem mudar; confira sempre os detalhes finais na página do produto na Shopee.</p>
+    <div class="credit">achadosshopeebsf</div>
+  </footer>
+</div>
 
-<script src="products.js"></script>
 <script>
-  // Os produtos são cadastrados em products.js — edite aquele arquivo
-  // pra adicionar, tirar ou mudar um produto. Nada aqui embaixo precisa
-  // ser mexido.
+  // Os produtos são carregados automaticamente de products.json,
+  // gerado pelo robô do GitHub Actions a partir de links.json.
+  // Nada aqui embaixo precisa ser editado manualmente.
+  let PRODUCTS = [];
 
   const scanner = document.getElementById('scanner');
   const scanBtn = document.getElementById('scanBtn');
   const card = document.getElementById('card');
   const againBtn = document.getElementById('againBtn');
+  const grid = document.getElementById('grid');
 
   let lastIndex = -1;
   function pickProduct(){
@@ -365,21 +447,21 @@
     if (p.image){
       img.src = p.image; img.style.display = 'block'; emoji.style.display = 'none';
     } else {
-      emoji.textContent = p.icon; emoji.style.display = 'block'; img.style.display = 'none';
+      emoji.textContent = p.icon || '🛍️'; emoji.style.display = 'block'; img.style.display = 'none';
     }
-    document.getElementById('cThumb').style.setProperty('background', p.accent);
-    document.getElementById('cTag').innerHTML = '<i></i>' + p.tag;
-    document.getElementById('cTag').style.setProperty('--card-accent', p.accent);
+    document.getElementById('cThumb').style.setProperty('background', p.accent || '#fc5f02');
+    document.getElementById('cTag').innerHTML = '<i></i>' + (p.tag || 'Shopee');
+    document.getElementById('cTag').style.setProperty('--card-accent', p.accent || '#fc5f02');
     document.getElementById('cName').textContent = p.title;
-    document.getElementById('cStars').innerHTML = '★★★★★<span>'+p.rating+'</span>';
-    document.getElementById('cDesc').textContent = p.desc;
-    document.getElementById('cOld').textContent = p.old;
-    document.getElementById('cNow').textContent = p.now;
-    document.getElementById('cOff').textContent = p.off;
+    document.getElementById('cStars').innerHTML = '★★★★★<span>'+(p.rating || '')+'</span>';
+    document.getElementById('cDesc').textContent = p.desc || '';
+    document.getElementById('cOld').textContent = p.old || '';
+    document.getElementById('cNow').textContent = p.now || '';
+    document.getElementById('cOff').textContent = p.off || '';
     const cta = document.getElementById('cCta');
     cta.href = p.affLink;
     cta.textContent = 'Comprar agora →';
-    card.style.setProperty('--card-accent', p.accent);
+    card.style.setProperty('--card-accent', p.accent || '#fc5f02');
   }
 
   function reveal(){
@@ -409,22 +491,19 @@
     setTimeout(reveal, 380);
   });
 
-  // ---- exibir produtos (carregados de products.js) ----
-  const grid = document.getElementById('grid');
-
   function renderGrid(){
     const shuffled = [...PRODUCTS].sort(()=>Math.random()-0.5);
     grid.innerHTML = shuffled.map((p) => `
-      <div class="mini">
-        <div class="mini-media" style="--mini-accent:${p.accent}">
-          ${p.image ? `<img src="${p.image}" alt="" loading="lazy" decoding="async">` : p.icon}
+      <div class="mini glass">
+        <div class="mini-media" style="--mini-accent:${p.accent || '#fc5f02'}">
+          ${p.image ? `<img src="${p.image}" alt="" loading="lazy" decoding="async">` : (p.icon || '🛍️')}
         </div>
         <div class="mini-content">
-          <div class="mini-tag" style="--mini-accent:${p.accent}"><i></i>${p.tag}</div>
+          <div class="mini-tag" style="--mini-accent:${p.accent || '#fc5f02'}"><i></i>${p.tag || 'Shopee'}</div>
           <h4>${p.title}</h4>
-          <p>${p.desc}</p>
+          <p>${p.desc || ''}</p>
           <div class="mini-bottom">
-            <span class="mini-price">${p.now}</span>
+            <span class="mini-price">${p.now || ''}</span>
             <a class="mini-link" href="${p.affLink}" target="_blank" rel="nofollow sponsored noopener">Comprar →</a>
           </div>
         </div>
@@ -432,11 +511,23 @@
     `).join('');
   }
 
-  if (!PRODUCTS.length){
-    grid.innerHTML = '<p style="color:var(--muted); font-size:13px;">Nenhum produto cadastrado ainda. Adicione em products.js.</p>';
-  } else {
-    renderGrid();
-  }
+  fetch('./products.json')
+    .then(res => {
+      if (!res.ok) throw new Error('products.json não encontrado');
+      return res.json();
+    })
+    .then(data => {
+      PRODUCTS = data;
+      if (!PRODUCTS.length){
+        grid.innerHTML = '<p style="color:var(--muted); font-size:13px;">Nenhum produto ainda. Adicione links em links.json e aguarde o robô atualizar.</p>';
+        return;
+      }
+      renderGrid();
+    })
+    .catch(err => {
+      console.error(err);
+      grid.innerHTML = '<p style="color:var(--muted); font-size:13px;">Não foi possível carregar os produtos agora. Confira se products.json existe no repositório.</p>';
+    });
 </script>
 </body>
 </html>
