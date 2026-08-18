@@ -2,8 +2,8 @@
   "status": "success",
   "source": "previous-fallback",
   "intervalMinutes": 30,
-  "startedAt": "2026-08-18T23:35:16.812Z",
-  "completedAt": "2026-08-18T23:35:18.480Z",
-  "nextUpdateAt": "2026-08-19T00:05:18.480Z",
+  "startedAt": "2026-08-18T23:35:48.330Z",
+  "completedAt": "2026-08-18T23:35:49.871Z",
+  "nextUpdateAt": "2026-08-19T00:05:49.871Z",
   "productsCount": 20
 }
