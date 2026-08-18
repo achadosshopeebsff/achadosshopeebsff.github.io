@@ -23,7 +23,7 @@
     "category1": "Eletrônicos",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.407Z"
+    "updatedAt": "2026-08-18T21:50:20.998Z"
   },
   {
     "id": "22892833180",
@@ -49,7 +49,7 @@
     "category1": "Achado",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.408Z"
+    "updatedAt": "2026-08-18T21:50:20.999Z"
   },
   {
     "id": "23197685907",
@@ -75,7 +75,7 @@
     "category1": "Moda",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.409Z"
+    "updatedAt": "2026-08-18T21:50:20.999Z"
   },
   {
     "id": "20596921951",
@@ -101,7 +101,7 @@
     "category1": "Casa",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.409Z"
+    "updatedAt": "2026-08-18T21:50:21.000Z"
   },
   {
     "id": "22493912124",
@@ -127,7 +127,7 @@
     "category1": "Beleza",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.409Z"
+    "updatedAt": "2026-08-18T21:50:21.000Z"
   },
   {
     "id": "58200509252",
@@ -153,7 +153,7 @@
     "category1": "Casa",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.409Z"
+    "updatedAt": "2026-08-18T21:50:21.000Z"
   },
   {
     "id": "22798710702",
@@ -179,7 +179,7 @@
     "category1": "Eletrônicos",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.410Z"
+    "updatedAt": "2026-08-18T21:50:21.000Z"
   },
   {
     "id": "5366034103",
@@ -189,14 +189,14 @@
     "tag": "Casa",
     "accent": "#ee4d2d",
     "icon": "🛍️",
-    "now": "R$ 24,89",
-    "old": "R$ 40,15",
-    "off": "-38%",
+    "now": "R$ 19,89",
+    "old": "R$ 39,78",
+    "off": "-50%",
     "rating": "4.7",
     "sales": 6992,
     "salesLabel": "7,0 mil",
     "commissionRate": 13,
-    "commission": "3.2357",
+    "commission": "2.5857",
     "shopName": "Rosele.",
     "shopId": "293509599",
     "itemId": "5366034103",
@@ -205,7 +205,7 @@
     "category1": "Casa",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.410Z"
+    "updatedAt": "2026-08-18T21:50:21.000Z"
   },
   {
     "id": "9987415279",
@@ -231,7 +231,7 @@
     "category1": "Fitness",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.410Z"
+    "updatedAt": "2026-08-18T21:50:21.000Z"
   },
   {
     "id": "12804820183",
@@ -257,7 +257,7 @@
     "category1": "Acessórios",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.410Z"
+    "updatedAt": "2026-08-18T21:50:21.001Z"
   },
   {
     "id": "23493492803",
@@ -283,7 +283,7 @@
     "category1": "Achado",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.411Z"
+    "updatedAt": "2026-08-18T21:50:21.001Z"
   },
   {
     "id": "16692338189",
@@ -309,7 +309,7 @@
     "category1": "Casa",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.411Z"
+    "updatedAt": "2026-08-18T21:50:21.001Z"
   },
   {
     "id": "18377415689",
@@ -335,7 +335,7 @@
     "category1": "Moda",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.411Z"
+    "updatedAt": "2026-08-18T21:50:21.001Z"
   },
   {
     "id": "22393226536",
@@ -361,7 +361,7 @@
     "category1": "Moda",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.411Z"
+    "updatedAt": "2026-08-18T21:50:21.001Z"
   },
   {
     "id": "41158748466",
@@ -387,7 +387,7 @@
     "category1": "Livros",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.411Z"
+    "updatedAt": "2026-08-18T21:50:21.002Z"
   },
   {
     "id": "19899586753",
@@ -413,7 +413,7 @@
     "category1": "Eletrônicos",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.412Z"
+    "updatedAt": "2026-08-18T21:50:21.002Z"
   },
   {
     "id": "19898027204",
@@ -439,7 +439,7 @@
     "category1": "Moda",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.412Z"
+    "updatedAt": "2026-08-18T21:50:21.002Z"
   },
   {
     "id": "22996121313",
@@ -465,7 +465,7 @@
     "category1": "Pets",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.412Z"
+    "updatedAt": "2026-08-18T21:50:21.002Z"
   },
   {
     "id": "19563814963",
@@ -491,7 +491,7 @@
     "category1": "Eletrônicos",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.412Z"
+    "updatedAt": "2026-08-18T21:50:21.002Z"
   },
   {
     "id": "29379017291",
@@ -517,6 +517,6 @@
     "category1": "Eletrônicos",
     "category2": "",
     "category3": "",
-    "updatedAt": "2026-08-18T20:56:05.412Z"
+    "updatedAt": "2026-08-18T21:50:21.002Z"
   }
 ]
