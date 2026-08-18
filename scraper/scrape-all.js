@@ -112,11 +112,6 @@ function buildProductQuery({ keyword = '', page = 1, limit, sortType, listType, 
         shopId
         shopName
         shopType
-        periodStartTime
-        periodEndTime
-        globalCategoryLv1Name
-        globalCategoryLv2Name
-        globalCategoryLv3Name
       }
       pageInfo {
         page
@@ -175,7 +170,7 @@ function salesLabel(sales) {
   return `${Math.round(n)} vendidos`;
 }
 
-function normalizeProduct(item, affLink) {
+function normalizeProduct(item, affLink, categoryHint = 'Shopee') {
   const priceMin = toNumber(item.priceMin);
   const priceMax = toNumber(item.priceMax);
   const discount = Math.max(0, toNumber(item.priceDiscountRate));
@@ -194,7 +189,7 @@ function normalizeProduct(item, affLink) {
     title: item.productName || 'Produto Shopee',
     desc: `${item.shopName || 'Loja Shopee'}${rating ? ` · ${rating.toFixed(1)}★` : ''}${sales ? ` · ${salesLabel(sales)}` : ''}`,
     image: item.imageUrl || '',
-    tag: item.globalCategoryLv2Name || item.globalCategoryLv1Name || 'Shopee',
+    tag: categoryHint || 'Shopee',
     accent: '#ee4d2d',
     icon: '🛍️',
     now: formatBRL(referencePrice),
@@ -206,9 +201,9 @@ function normalizeProduct(item, affLink) {
     shopName: item.shopName || '',
     shopId: item.shopId ? String(item.shopId) : '',
     itemId: item.itemId ? String(item.itemId) : '',
-    category1: item.globalCategoryLv1Name || '',
-    category2: item.globalCategoryLv2Name || '',
-    category3: item.globalCategoryLv3Name || '',
+    category1: categoryHint || 'Shopee',
+    category2: '',
+    category3: '',
     updatedAt: new Date().toISOString()
   };
 }
@@ -280,7 +275,7 @@ function stableSort(products) {
   return products
     .map((item) => ({ item, score: scoreProduct(item, config.rules || {}) }))
     .sort((a, b) => b.score - a.score)
-    .map(({ item }) => normalizeProduct(item, item.offerLink || item.productLink));
+    .map(({ item }) => item);
 }
 
 async function main() {
@@ -334,6 +329,7 @@ async function main() {
     const responses = await Promise.all(batch.map(async (task) => {
       try {
         const rows = await fetchProducts(task);
+        for (const row of rows) row.__categoryHint = task.label && task.keyword ? task.label : (task.label === 'menor-preço' ? 'Ofertas' : 'Mais vendidos');
         console.log(`  ✓ ${task.label || 'geral'} (${task.sortType}): ${rows.length}`);
         return rows;
       } catch (error) {
@@ -366,7 +362,7 @@ async function main() {
   const generated = await enrichAffiliateLinks(selected, maxShortLinks);
 
   const normalized = selected
-    .map((item) => normalizeProduct(item, item.offerLink || item.productLink))
+    .map((item) => normalizeProduct(item, item.offerLink || item.productLink, item.__categoryHint || 'Shopee'))
     .filter((item) => item.affLink && item.image && item.now)
     .map((item) => ({ ...item, score: scoreProduct(item, rules) }));
 
@@ -385,13 +381,16 @@ async function main() {
     fs.writeFileSync(LINKS_FILE, `${JSON.stringify(affiliateLinks, null, 2)}\n`, 'utf8');
   } else {
     console.warn('⚠️ Nenhum produto elegível retornado. Mantendo catálogo anterior.');
+    const fallback = readJson(path.join(ROOT, 'fallback-products.json'), []);
+    const safeProducts = Array.isArray(existingProducts) && existingProducts.length ? existingProducts : fallback;
+    if (!Array.isArray(safeProducts) || safeProducts.length === 0) {
+      throw new Error('A Shopee não retornou produtos e não existe catálogo de fallback.');
+    }
     if (!Array.isArray(existingProducts) || existingProducts.length === 0) {
-      throw new Error('A Shopee não retornou nenhum produto e o catálogo inicial está vazio.');
+      fs.writeFileSync(OUTPUT_FILE, `${JSON.stringify(safeProducts, null, 2)}\n`, 'utf8');
     }
-    if (!Array.isArray(existingLinks) || existingLinks.length === 0) {
-      const fallbackLinks = [...new Set(existingProducts.map((item) => item.affLink || item.productLink).filter(Boolean))];
-      fs.writeFileSync(LINKS_FILE, `${JSON.stringify(fallbackLinks, null, 2)}\n`, 'utf8');
-    }
+    const fallbackLinks = [...new Set(safeProducts.map((item) => item.affLink || item.productLink).filter(Boolean))];
+    if (fallbackLinks.length) fs.writeFileSync(LINKS_FILE, `${JSON.stringify(fallbackLinks, null, 2)}\n`, 'utf8');
   }
 
   // Mantém a variável de compatibilidade para versões antigas do projeto.
