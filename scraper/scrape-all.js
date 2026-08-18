@@ -96,16 +96,20 @@ function productFields() {
   `;
 }
 
-function buildSearchQuery({ keyword = null, sortType = 1, page = 1, limit = 50, listType = null, shopId = null, itemId = null }) {
-  const args = [];
-  if (keyword) args.push(`keyword: ${JSON.stringify(String(keyword))}`);
-  if (Number.isInteger(shopId)) args.push(`shopId: ${shopId}`);
-  if (Number.isInteger(itemId)) args.push(`itemId: ${itemId}`);
-  if (Number.isInteger(sortType)) args.push(`sortType: ${sortType}`);
-  if (Number.isInteger(page)) args.push(`page: ${page}`);
-  if (Number.isInteger(limit)) args.push(`limit: ${limit}`);
-  if (Number.isInteger(listType)) args.push(`listType: ${listType}`);
-  return `query { productOfferV2(${args.join(', ')}) { nodes { ${productFields()} } pageInfo { page limit hasNextPage } } }`;
+function buildSearchQuery({ keyword, sortType = 1, page = 1, limit = 50, listType = null }) {
+  const safeKeyword = JSON.stringify(String(keyword));
+  const listTypeArg = Number.isInteger(listType) ? `, listType: ${listType}` : '';
+  return `query {
+    productOfferV2(
+      keyword: ${safeKeyword},
+      sortType: ${sortType},
+      page: ${page},
+      limit: ${limit}${listTypeArg}
+    ) {
+      nodes { ${productFields()} }
+      pageInfo { page limit hasNextPage }
+    }
+  }`;
 }
 
 function buildTopQuery({ page = 1, limit = 50 }) {
@@ -122,18 +126,49 @@ function buildTopQuery({ page = 1, limit = 50 }) {
   }`;
 }
 
-function buildShortLinkMutation(originUrl) {
+function buildShortLinkMutation(originUrl, subIds) {
   const safeUrl = JSON.stringify(String(originUrl));
+  const safeSubIds = Array.isArray(subIds) && subIds.length
+    ? `, subIds: ${JSON.stringify(subIds.slice(0, 5).map(String))}`
+    : '';
   return `mutation {
-    generateShortLink(input: { originUrl: ${safeUrl} }) { shortLink }
+    generateShortLink(input: { originUrl: ${safeUrl}${safeSubIds} }) { shortLink }
   }`;
 }
 
-async function generateAffiliateLink(product) {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Roda `fn` com pequenos atrasos e nova tentativa em caso de rate limit (erro 10030
+// da Shopee), para não perder produtos só porque o bot fez muitas chamadas seguidas.
+async function withRateLimitRetry(fn, { retries = 3, baseDelayMs = 700 } = {}) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const isRateLimit = /10030|rate limit/i.test(error.message || '');
+      if (!isRateLimit || attempt === retries) throw error;
+      const wait = baseDelayMs * (attempt + 1);
+      console.warn(`  ⏳ rate limit da Shopee, aguardando ${wait}ms antes de tentar de novo…`);
+      await sleep(wait);
+    }
+  }
+  throw lastError;
+}
+
+async function generateAffiliateLink(product, config) {
+  // O offerLink retornado pela API já vem com o tracking da SUA conta de afiliado
+  // (a conta ligada ao SHOPEE_APP_ID/SHOPEE_APP_SECRET configurados nos Secrets).
   if (product?.offerLink) return product.offerLink;
   if (!product?.productLink) return '';
   try {
-    const data = await graphql(buildShortLinkMutation(product.productLink));
+    const data = await withRateLimitRetry(() =>
+      graphql(buildShortLinkMutation(product.productLink, config?.subIds))
+    );
+    await sleep(API_CALL_DELAY_MS);
     return data?.generateShortLink?.shortLink || '';
   } catch (error) {
     console.warn(`  ⚠ link afiliado não gerado para ${product.itemId}: ${error.message}`);
@@ -206,8 +241,7 @@ function scoreProduct(p) {
 
 function normalizeProduct(product, affiliateLink) {
   const price = toNumber(product.priceMin || product.priceMax);
-  let discount = toNumber(product.priceDiscountRate);
-  if (discount > 0 && discount <= 1) discount *= 100;
+  const discount = toNumber(product.priceDiscountRate);
   const oldPrice = discount > 0 && price > 0 ? price / Math.max(0.01, 1 - discount / 100) : 0;
   const rating = ratingNumber(product.ratingStar);
   const sales = toNumber(product.sales);
@@ -273,9 +307,11 @@ function fixedAsFallback(fixed) {
 async function searchKeyword(keyword, config) {
   const results = [];
   const pages = Math.max(1, Math.min(config.pagesPerKeyword || 2, 5));
-  const limit = Math.max(1, Math.min(config.limitPerQuery || 100, 500));
+  const limit = Math.max(1, Math.min(config.limitPerQuery || 50, 500));
   for (let page = 1; page <= pages; page++) {
-    const data = await graphql(buildSearchQuery({ keyword, sortType: 2, page, limit }));
+    const data = await withRateLimitRetry(() =>
+      graphql(buildSearchQuery({ keyword, sortType: 2, page, limit }))
+    );
     const connection = data?.productOfferV2;
     results.push(...(connection?.nodes || []));
     if (!connection?.pageInfo?.hasNextPage) break;
@@ -284,63 +320,36 @@ async function searchKeyword(keyword, config) {
 }
 
 async function topPerforming(config) {
-  const limit = Math.max(1, Math.min(config.topPerformingLimit || 100, 500));
-  const data = await graphql(buildTopQuery({ page: 1, limit }));
+  const limit = Math.max(1, Math.min(config.topPerformingLimit || 50, 500));
+  const data = await withRateLimitRetry(() => graphql(buildTopQuery({ page: 1, limit })));
   return data?.productOfferV2?.nodes || [];
 }
 
-async function mapWithConcurrency(items, concurrency, worker) {
-  const results = [];
-  let cursor = 0;
-  async function runner() {
-    while (true) {
-      const index = cursor++;
-      if (index >= items.length) return;
-      try {
-        results[index] = await worker(items[index], index);
-      } catch (error) {
-        results[index] = { error };
-      }
-    }
-  }
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => runner());
-  await Promise.all(workers);
-  return results;
-}
+// Atraso pequeno entre chamadas sequenciais à API da Shopee, só para não estourar
+// o limite de requisições (erro 10030) quando o bot passa por várias keywords.
+const API_CALL_DELAY_MS = 350;
 
 async function collectDynamicProducts(config) {
   const map = new Map();
   const keywords = Array.isArray(config.keywords) ? config.keywords : [];
-  const pages = Math.max(1, Math.min(Number(config.pagesPerKeyword) || 4, 8));
-  const limit = Math.max(20, Math.min(Number(config.limitPerQuery) || 100, 500));
 
-  const keywordResults = await mapWithConcurrency(keywords, 3, async (keyword) => {
-    const nodes = await searchKeyword(keyword, { ...config, pagesPerKeyword: pages, limitPerQuery: limit });
-    console.log(`  ✓ ${keyword}: ${nodes.length} produtos encontrados`);
-    return nodes;
-  });
-
-  for (const result of keywordResults) {
-    if (result?.error) {
-      console.warn(`  ⚠ consulta: ${result.error.message}`);
-      continue;
+  for (const keyword of keywords) {
+    try {
+      const nodes = await searchKeyword(keyword, config);
+      console.log(`  ✓ ${keyword}: ${nodes.length} produtos encontrados`);
+      for (const node of nodes) {
+        const id = String(node.itemId || '');
+        if (id) map.set(id, node);
+      }
+    } catch (error) {
+      console.warn(`  ⚠ ${keyword}: ${error.message}`);
     }
-    for (const node of result || []) {
-      const id = String(node.itemId || '');
-      if (id) map.set(id, node);
-    }
+    await sleep(API_CALL_DELAY_MS);
   }
 
   if (config.includeTopPerforming !== false) {
     try {
-      const nodes = [];
-      const topPages = Math.max(1, Math.min(Number(config.topPerformingPages) || 4, 8));
-      for (let page = 1; page <= topPages; page++) {
-        const data = await graphql(buildTopQuery({ page, limit: Math.min(500, Number(config.topPerformingLimit) || 100) }));
-        const connection = data?.productOfferV2;
-        nodes.push(...(connection?.nodes || []));
-        if (!connection?.pageInfo?.hasNextPage) break;
-      }
+      const nodes = await topPerforming(config);
       console.log(`  ✓ top-performing: ${nodes.length} produtos encontrados`);
       for (const node of nodes) {
         const id = String(node.itemId || '');
@@ -354,53 +363,20 @@ async function collectDynamicProducts(config) {
   return [...map.values()];
 }
 
-async function enrichFixedProducts(fixed) {
-  const results = await mapWithConcurrency(fixed, 4, async (item) => {
-    const shopId = Number(String(item.productLink || '').match(/\/product\/(\d+)\//)?.[1]);
-    const itemId = Number(item.itemId);
-    if (!Number.isFinite(shopId) || !Number.isFinite(itemId)) return item;
-    try {
-      const data = await graphql(buildSearchQuery({ shopId, itemId, page: 1, limit: 10 }));
-      const node = data?.productOfferV2?.nodes?.find((n) => String(n.itemId) === String(itemId)) || data?.productOfferV2?.nodes?.[0];
-      if (!node) return item;
-      return { ...item, api: node };
-    } catch (error) {
-      console.warn(`  ⚠ seed ${itemId}: ${error.message}`);
-      return item;
-    }
-  });
-  return results;
-}
-
-function enrichedFixedFallback(fixed) {
-  return fixed.map((item) => {
-    const api = item.api;
-    if (api?.imageUrl || api?.priceMin || api?.offerLink) {
-      const link = item.offerLink || api.offerLink || item.productLink;
-      const product = normalizeProduct({
-        ...api,
-        itemId: item.itemId,
-        productName: api.productName || item.itemName,
-        productLink: api.productLink || item.productLink,
-        shopId: api.shopId || Number(String(item.productLink).match(/\/product\/(\d+)\//)?.[1]),
-        shopName: api.shopName || item.shopName,
-      }, link);
-      return { ...product, source: 'fixed-seed' };
-    }
-    return fixedAsFallback([item])[0] && { ...fixedAsFallback([item])[0], image: '' , source: 'fixed-seed' };
-  });
-}
-
 async function buildDynamicCatalog(nodes, config) {
+  const target = Math.max(1, config.maxProducts || 30);
+  // Pega uma folga acima do alvo (produtos + link não gerado ou sem imagem acabam
+  // descartados na etapa seguinte), assim quase sempre fecha os 30 pedidos.
   const ranked = nodes
     .filter((p) => p && p.itemId && p.productLink && p.imageUrl)
     .map((p) => ({ p, score: scoreProduct(p) }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, Math.max(1, config.maxProducts || 80));
+    .slice(0, target * 3);
 
   const results = [];
   for (const { p } of ranked) {
-    const affiliateLink = await generateAffiliateLink(p);
+    if (results.length >= target) break;
+    const affiliateLink = await generateAffiliateLink(p, config);
     if (!affiliateLink) continue;
     results.push(normalizeProduct(p, affiliateLink));
   }
@@ -424,14 +400,14 @@ function writeSyncMeta({ startedAt, completedAt, productsCount, source }) {
 async function main() {
   const config = readJson(CONFIG_FILE, {
     refreshIntervalMinutes: 30,
-    maxProducts: 100,
-    minDynamicProducts: 100,
-    targetProducts: 100,
-    pagesPerKeyword: 2,
-    limitPerQuery: 100,
-    topPerformingLimit: 100,
+    maxProducts: 30,
+    minDynamicProducts: 24,
+    pagesPerKeyword: 1,
+    limitPerQuery: 50,
+    topPerformingLimit: 50,
     includeTopPerforming: true,
-    keywords: []
+    keywords: [],
+    subIds: ['achadosshopeebsf']
   });
   const fixed = readJson(FIXED_FILE, []);
   const previous = readJson(OUTPUT_FILE, []);
@@ -441,15 +417,8 @@ async function main() {
 
   console.log('🤖 Bot de achadinhos Shopee iniciado');
   console.log(`🟢 Catálogo inicial: ${fixed.length} produtos fixos`);
-  console.log(`🔄 Catálogo dinâmico: alvo de ${config.targetProducts || config.maxProducts || 100} produtos`);
+  console.log(`🔄 Depois, catálogo dinâmico: até ${config.maxProducts || 30} produtos`);
   console.log(`⏱️ Atualização programada: a cada ${config.refreshIntervalMinutes || 30} minutos`);
-
-  let enrichedFixed = fixed;
-  try {
-    enrichedFixed = await enrichFixedProducts(fixed);
-  } catch (error) {
-    console.warn(`⚠️ Falha ao enriquecer catálogo inicial: ${error.message}`);
-  }
 
   let dynamic = [];
   try {
@@ -461,7 +430,7 @@ async function main() {
     console.warn(`⚠️ Falha total na coleta dinâmica: ${error.message}`);
   }
 
-  const hasEnoughDynamic = dynamic.length >= Math.max(1, config.minDynamicProducts || config.targetProducts || 100);
+  const hasEnoughDynamic = dynamic.length >= Math.max(1, config.minDynamicProducts || 24);
   const previousIsDynamic = Array.isArray(previous) && previous.some((p) => p?.source === 'api-dynamic');
 
   let output;
@@ -472,9 +441,9 @@ async function main() {
   } else if (Array.isArray(previous) && previous.length > 0) {
     output = previous;
     source = previousIsDynamic ? 'previous-dynamic' : 'previous-fallback';
-    console.warn(`⚠️ Só ${dynamic.length} produtos dinâmicos válidos; mantendo catálogo anterior para evitar reduzir a loja.`);
+    console.warn(`⚠️ Só ${dynamic.length} produtos dinâmicos válidos; mantendo catálogo anterior.`);
   } else {
-    output = enrichedFixedFallback(enrichedFixed);
+    output = fixedAsFallback(fixed).map((p) => ({ ...p, source: 'fixed-fallback' }));
     source = 'fixed-fallback';
     console.warn('⚠️ Primeira execução sem retorno suficiente da API; publicando catálogo inicial fixo.');
   }
@@ -488,7 +457,7 @@ async function main() {
   console.log(`\n✅ products.json: ${output.length} produtos`);
   console.log(`🔗 links.json: ${affiliateLinks.length} links de afiliado`);
   console.log(`📦 fonte publicada: ${source}`);
-  console.log(`⏱️ próxima atualização: ${config.refreshIntervalMinutes || 30} minutos após esta conclusão.`);
+  console.log(`⏱️ próxima atualização: 30 minutos após esta conclusão.`);
 }
 
 main().catch((error) => {
