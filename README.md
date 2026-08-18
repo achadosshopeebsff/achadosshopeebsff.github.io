@@ -50,3 +50,6 @@ Referência: Explorer oficial da Shopee Affiliate Open API.
 
 ### Catálogo dinâmico
 O bot tenta publicar 100 produtos por sincronização. O catálogo inicial fixo é apenas fallback para evitar página vazia. Após uma sincronização válida, `products.json` e `links.json` são regenerados com os produtos retornados pela API e seus links de afiliado.
+
+## Catálogo visual e dados de oferta
+Os cartões do site exibem `image`, `now`, `old`, `off`, `rating`, `salesLabel`, `shopName` e `commissionRate`. Os campos de preço anterior/desconto são calculados a partir de `priceMin` e `priceDiscountRate` quando a Open API não oferece um preço anterior explícito. `imageUrl`, `offerLink`, `sales`, `ratingStar`, `priceMin`, `priceMax` e `priceDiscountRate` são campos do `ProductOfferV2`. Quando a sincronização da API conclui, `products.json` é substituído pelo catálogo dinâmico válido; em falhas, o último catálogo válido permanece publicado.

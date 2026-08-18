@@ -4,7 +4,7 @@
   "maxProducts": 100,
   "minDynamicProducts": 100,
   "targetProducts": 100,
-  "pagesPerKeyword": 2,
+  "pagesPerKeyword": 4,
   "limitPerQuery": 100,
   "topPerformingLimit": 100,
   "includeTopPerforming": true,
@@ -26,5 +26,6 @@
     "eletronicos",
     "gadget",
     "ofertas"
-  ]
+  ],
+  "topPerformingPages": 4
 }
