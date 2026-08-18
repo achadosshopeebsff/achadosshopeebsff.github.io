@@ -40,7 +40,9 @@ Exemplo: para priorizar ainda mais produtos baratos e bem avaliados, mantenha `m
 
 ## Atualização automática
 
-O workflow executa a cada 6 horas e também pode ser iniciado manualmente em **Actions → Atualizar achadinhos Shopee → Run workflow**.
+O workflow executa a cada 5 minutos e também pode ser iniciado manualmente em **Actions → Atualizar achadinhos Shopee → Run workflow**. O navegador verifica o catálogo uma vez por minuto, sem chamar a Shopee diretamente.
+
+O bot **nunca apaga um catálogo válido** quando a API retorna zero produtos ou sofre uma falha temporária. O pacote também inclui `fallback-products.json` e um catálogo inicial para a primeira publicação; esse catálogo inicial usa buscas públicas da Shopee e é substituído automaticamente pelos links de afiliado reais assim que a primeira sincronização bem-sucedida ocorrer.
 
 Depois da execução, o bot atualiza `products.json`. O site continua rápido porque o visitante recebe somente o catálogo estático e as imagens carregam sob demanda.
 

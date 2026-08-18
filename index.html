@@ -209,7 +209,7 @@
     (() => {
       'use strict';
 
-      const state = { products: [], lastIndex: -1, busy: false };
+      const state = { products: [], lastIndex: -1, busy: false, refreshTimer: null };
       const $ = (id) => document.getElementById(id);
       const els = {
         scanner: $('scanner'), scanBtn: $('scanBtn'), card: $('productCard'), again: $('againBtn'),
@@ -298,19 +298,23 @@
         els.count.textContent = `${Math.min(state.products.length,24)} achados disponíveis`;
       }
 
-      async function loadProducts() {
+      async function loadProducts(isRefresh = false) {
         try {
-          const res = await fetch('./products.json', { cache: 'no-cache', headers: { 'Accept': 'application/json' }});
+          const res = await fetch(`./products.json?ts=${Date.now()}`, { cache: 'no-store', headers: { 'Accept': 'application/json' }});
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
           state.products = Array.isArray(data) ? data.filter(p => p && (p.title || p.productName) && (p.affLink || p.productLink)) : [];
           renderGrid();
-          els.status.textContent = state.products.length ? `${state.products.length} achados carregados.` : 'Nenhum achado disponível.';
+          els.status.textContent = state.products.length ? `${state.products.length} achados carregados.` : 'Atualizando catálogo…';
         } catch (error) {
           console.error('Falha ao carregar produtos:', error);
-          els.status.textContent = 'Não foi possível carregar os achados agora.';
-          els.grid.innerHTML = '<p style="color:var(--muted);font-size:13px">Tente atualizar a página em alguns instantes.</p>';
+          els.status.textContent = state.products.length ? 'Mantendo os achados já carregados.' : 'Atualizando catálogo…';
         }
+      }
+
+      function scheduleRefresh() {
+        window.clearInterval(state.refreshTimer);
+        state.refreshTimer = window.setInterval(() => loadProducts(true), 60000);
       }
 
       els.scanBtn.addEventListener('click', reveal, { passive: true });
@@ -321,6 +325,7 @@
       });
 
       loadProducts();
+      scheduleRefresh();
     })();
   </script>
 </body>
