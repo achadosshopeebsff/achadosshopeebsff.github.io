@@ -374,9 +374,25 @@ async function main() {
   const output = normalized.slice(0, maxProducts);
   for (const item of output) delete item.score;
 
-  fs.writeFileSync(OUTPUT_FILE, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
-  const affiliateLinks = [...new Set(output.map((item) => item.affLink).filter(Boolean))];
-  fs.writeFileSync(LINKS_FILE, `${JSON.stringify(affiliateLinks, null, 2)}\n`, 'utf8');
+  const existingProducts = readJson(OUTPUT_FILE, []);
+  const existingLinks = readJson(LINKS_FILE, []);
+
+  // Nunca apaga um catálogo válido por causa de uma falha/retorno vazio da API.
+  // Isso evita que o site fique sem produtos durante uma instabilidade temporária.
+  if (output.length > 0) {
+    fs.writeFileSync(OUTPUT_FILE, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
+    const affiliateLinks = [...new Set(output.map((item) => item.affLink).filter(Boolean))];
+    fs.writeFileSync(LINKS_FILE, `${JSON.stringify(affiliateLinks, null, 2)}\n`, 'utf8');
+  } else {
+    console.warn('⚠️ Nenhum produto elegível retornado. Mantendo catálogo anterior.');
+    if (!Array.isArray(existingProducts) || existingProducts.length === 0) {
+      throw new Error('A Shopee não retornou nenhum produto e o catálogo inicial está vazio.');
+    }
+    if (!Array.isArray(existingLinks) || existingLinks.length === 0) {
+      const fallbackLinks = [...new Set(existingProducts.map((item) => item.affLink || item.productLink).filter(Boolean))];
+      fs.writeFileSync(LINKS_FILE, `${JSON.stringify(fallbackLinks, null, 2)}\n`, 'utf8');
+    }
+  }
 
   // Mantém a variável de compatibilidade para versões antigas do projeto.
   if (!fs.existsSync(LEGACY_LINKS_FILE)) fs.writeFileSync(LEGACY_LINKS_FILE, '[]\n', 'utf8');
