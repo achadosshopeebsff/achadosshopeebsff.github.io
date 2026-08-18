@@ -1,55 +1,35 @@
-# achadosshopeebsf — catálogo automático Shopee
+# Achados Shopee BSF — catálogo fixo + atualização automática
 
-Este projeto é uma vitrine leve de achadinhos da Shopee. O navegador **não chama a API da Shopee**: o GitHub Actions roda um bot em background, gera `products.json` e o site apenas lê o JSON estático. Isso reduz travamentos e consumo de rede no celular.
+Este projeto **não faz busca por palavra-chave** e não cria links para páginas de pesquisa.
 
-## O que o bot faz automaticamente
+O catálogo é composto pelos produtos definidos em `fixed-products.json`. Cada item possui:
 
-1. Consulta a Shopee Affiliate Open API usando `productOfferV2`.
-2. Faz várias buscas por palavras-chave e também consultas de produtos de melhor desempenho.
-3. Coleta dezenas/centenas de candidatos.
-4. Filtra por avaliação, vendas, preço e, opcionalmente, comissão.
-5. Dá uma pontuação maior para produtos com boa avaliação, muitas vendas, desconto e preço baixo.
-6. Remove duplicados.
-7. Usa `offerLink` retornado pela API como link de afiliado. Quando um produto não traz `offerLink`, tenta `generateShortLink` apenas como fallback.
-8. Publica os melhores produtos em `products.json`.
-9. O `index.html` mostra automaticamente o catálogo novo sem cadastro manual de links.
+- Item ID
+- Shop ID (extraído do `productLink`)
+- nome/preço/vendas/comissão de referência
+- `productLink` direto do item
+- `offerLink` **de afiliado já fornecido**
 
-A API oficial disponibiliza `productOfferV2` para buscar produtos e campos como `productName`, `offerLink`, `priceMin`, `priceMax`, `priceDiscountRate`, `sales`, `ratingStar` e `commissionRate`. O `offerLink` é o link da oferta de afiliado. Fonte: https://open-api.affiliate.shopee.com.br/explorer
+A cada hora, o GitHub Actions consulta `productOfferV2` **diretamente por `shopId + itemId`** para atualizar apenas os dados daquele mesmo produto, incluindo imagem, preço, vendas, avaliação, comissão e nome da loja.
 
-## Configuração única no GitHub
+O bot **preserva o `offerLink` fixo de cada produto**. Ele nunca substitui o link por `shopee.com.br/search?...` e nunca cria um link de pesquisa.
 
-Em **Settings → Secrets and variables → Actions**, crie:
+`links.json` contém apenas os `offerLink` de afiliado.
+
+## Secrets do GitHub
+
+Cadastre em `Settings → Secrets and variables → Actions`:
 
 - `SHOPEE_APP_ID`
 - `SHOPEE_APP_SECRET`
 
-Nunca coloque a Secret no `index.html`, `products.json`, JavaScript do frontend ou `bot-config.json`.
+As credenciais nunca são gravadas nos arquivos públicos.
 
-## Personalizar o bot
+## Atualização
 
-Edite somente `bot-config.json` quando quiser mudar o comportamento.
+- Executa automaticamente de hora em hora.
+- Também pode ser executado em `Actions → Atualizar produtos Shopee → Run workflow`.
+- Se a Shopee falhar temporariamente, o catálogo anterior permanece publicado.
+- O frontend lê `products.json` e não chama a API da Shopee diretamente.
 
-- `keywords`: assuntos/produtos que o bot deve buscar.
-- `rules.minRating`: avaliação mínima.
-- `rules.minSales`: vendas mínimas.
-- `rules.minPrice` / `rules.maxPrice`: faixa de preço.
-- `output.maxProducts`: quantidade publicada no site (até 500).
-- `output.maxShortLinks`: limite de short links de fallback por execução.
-
-Exemplo: para priorizar ainda mais produtos baratos e bem avaliados, mantenha `minRating` em `4.6` e `maxPrice` entre `100` e `200`.
-
-## Atualização automática
-
-O workflow executa a cada 5 minutos e também pode ser iniciado manualmente em **Actions → Atualizar achadinhos Shopee → Run workflow**. O navegador verifica o catálogo uma vez por minuto, sem chamar a Shopee diretamente.
-
-O bot **nunca apaga um catálogo válido** quando a API retorna zero produtos ou sofre uma falha temporária. O pacote também inclui `fallback-products.json` e um catálogo inicial para a primeira publicação; esse catálogo inicial usa buscas públicas da Shopee e é substituído automaticamente pelos links de afiliado reais assim que a primeira sincronização bem-sucedida ocorrer.
-
-Depois da execução, o bot atualiza `products.json`. O site continua rápido porque o visitante recebe somente o catálogo estático e as imagens carregam sob demanda.
-
-## Importante
-
-A seleção é automática, mas a API e a disponibilidade da Shopee determinam quais ofertas podem ser retornadas. O bot não inventa produtos nem links. Preços, estoque, promoções e disponibilidade podem mudar.
-
-## Correção da integração Shopee
-
-A consulta `productOfferV2` foi ajustada para usar apenas campos compatíveis com `ProductOfferV2` aceitos pelo endpoint brasileiro. Os campos `globalCategoryLv1Name`, `globalCategoryLv2Name` e `globalCategoryLv3Name` foram removidos porque causavam erro de validação GraphQL. A categoria exibida no site agora é derivada da palavra-chave da busca, sem depender desses campos.
+A API oficial brasileira usa GraphQL em `https://open-api.affiliate.shopee.com.br/graphql` e o `productOfferV2` permite consultar um produto conhecido por `itemId` e `shopId`, retornando `imageUrl`, `priceMin`, `sales`, `ratingStar`, `commission`, `productLink` e `offerLink`.
