@@ -1,13 +1,13 @@
-name: Atualizar produtos da Shopee
+name: Atualizar achadinhos Shopee
 
 on:
   push:
     paths:
+      - "bot-config.json"
       - "links.json"
       - "scraper/**"
       - ".github/workflows/update-products.yml"
   schedule:
-    # Executa 4x ao dia para manter preço/estoque/ofertas mais recentes.
     - cron: "0 */6 * * *"
   workflow_dispatch: {}
 
@@ -21,27 +21,27 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
       - name: Baixar o repositório
         uses: actions/checkout@v4
 
-      - name: Node.js
+      - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Atualizar produtos via Shopee Affiliate API
+      - name: Descobrir, ranquear e atualizar produtos via Shopee Affiliate API
         working-directory: ./scraper
         env:
           SHOPEE_APP_ID: ${{ secrets.SHOPEE_APP_ID }}
           SHOPEE_APP_SECRET: ${{ secrets.SHOPEE_APP_SECRET }}
         run: node scrape-all.js
 
-      - name: Publicar products.json
+      - name: Publicar catálogo atualizado
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add products.json
-          git diff --staged --quiet || git commit -m "Atualizar produtos Shopee"
+          git add products.json links.json bot-config.json scraper/
+          git diff --staged --quiet || git commit -m "Atualizar achadinhos Shopee"
           git push
