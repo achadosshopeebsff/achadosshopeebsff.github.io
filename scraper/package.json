@@ -1,9 +1,10 @@
 {
-  "name": "scrape-shopee",
-  "version": "1.0.0",
-  "description": "Lê os links de links.json e gera products.json com dados reais da Shopee.",
+  "name": "shopee-affiliate-sync",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Atualiza produtos do site via Shopee Affiliate Open API",
   "main": "scrape-all.js",
-  "dependencies": {
-    "puppeteer": "^22.0.0"
+  "engines": {
+    "node": ">=20"
   }
 }
