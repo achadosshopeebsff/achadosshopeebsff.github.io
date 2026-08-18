@@ -49,3 +49,7 @@ Depois da execução, o bot atualiza `products.json`. O site continua rápido po
 ## Importante
 
 A seleção é automática, mas a API e a disponibilidade da Shopee determinam quais ofertas podem ser retornadas. O bot não inventa produtos nem links. Preços, estoque, promoções e disponibilidade podem mudar.
+
+## Correção da integração Shopee
+
+A consulta `productOfferV2` foi ajustada para usar apenas campos compatíveis com `ProductOfferV2` aceitos pelo endpoint brasileiro. Os campos `globalCategoryLv1Name`, `globalCategoryLv2Name` e `globalCategoryLv3Name` foram removidos porque causavam erro de validação GraphQL. A categoria exibida no site agora é derivada da palavra-chave da busca, sem depender desses campos.
