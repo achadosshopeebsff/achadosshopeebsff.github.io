@@ -105,20 +105,14 @@
     .mini{overflow:hidden;content-visibility:auto;contain-intrinsic-size:280px}
     .mini-media{height:148px;background:#2a1c18;display:grid;place-items:center;overflow:hidden}
     .mini-media img{width:100%;height:100%;object-fit:cover}
-    .mini-content{padding:16px;display:flex;flex-direction:column;gap:8px;min-height:230px}
+    .mini-content{padding:16px;display:flex;flex-direction:column;gap:8px;min-height:172px}
     .mini-tag{display:flex;gap:6px;color:var(--muted);font:600 9px "JetBrains Mono",monospace;text-transform:uppercase}
     .mini-tag i{width:5px;height:5px;border-radius:50%;background:var(--mini-accent,var(--accent))}
     .mini h3{margin:0;font:700 15px/1.3 "Space Grotesk",sans-serif}
     .mini p{margin:0;color:var(--muted);font-size:12px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-    .mini-rating{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--accent);font-weight:700}
-    .mini-rating span{color:var(--muted);font-weight:500}
-    .mini-price-row{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
-    .mini-old{color:var(--muted);text-decoration:line-through;font:500 11px "JetBrains Mono",monospace}
-    .mini-price{font:800 16px "JetBrains Mono",monospace;color:var(--accent)}
-    .mini-off{padding:3px 7px;border-radius:7px;background:rgba(232,46,5,.15);color:#ff8d75;font-size:10px;font-weight:800}
-    .mini-meta{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:10px}
     .mini-bottom{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:10px}
-    .mini-link{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 14px;border-radius:999px;background:var(--secondary);color:#fff;text-decoration:none;font-size:12px;font-weight:800}
+    .mini-price{font:700 13px "JetBrains Mono",monospace;color:var(--accent)}
+    .mini-link{font-size:12px;font-weight:700;color:var(--primary);text-decoration:none}
     footer{padding:30px;margin:0 auto 40px;text-align:center}
     footer p{max-width:620px;margin:0 auto;color:var(--muted);font-size:12px;line-height:1.7}
     .badge{display:inline-flex;gap:7px;align-items:center;color:var(--shopee,var(--primary));font:600 11px "JetBrains Mono",monospace;text-transform:uppercase;margin-bottom:14px}
@@ -172,7 +166,7 @@
       <div class="next-update glass" id="nextUpdate" role="status" aria-live="polite" aria-label="Contagem para a próxima atualização">
         <span class="next-update-label">PRÓXIMA ATUALIZAÇÃO AUTOMÁTICA</span>
         <strong id="countdown">30:00</strong>
-        <span class="next-update-sub" id="updatedAtLabel">Próxima atualização automática dos produtos em até 30 minutos</span>
+        <span class="next-update-sub" id="updatedAtLabel">Sincronização com a Shopee a cada 30 minutos</span>
       </div>
 
       <div class="reveal-stage">
@@ -261,8 +255,7 @@
         els.tag.style.setProperty('--card-accent', p.accent || '#ee4d2d');
         els.tag.lastChild.textContent = p.tag || 'Shopee';
         els.name.textContent = p.title || 'Produto Shopee';
-        els.stars.firstChild.textContent = p.rating ? '★'.repeat(Math.round(Number(p.rating) || 0)) : '★★★★★';
-        els.stars.lastElementChild.textContent = `${p.rating ? p.rating + ' · ' : ''}${p.salesLabel ? p.salesLabel + ' vendidos' : (p.sales ? p.sales + ' vendidos' : '')}`;
+        els.stars.lastElementChild.textContent = p.rating ? `${p.rating}${p.sales ? ` · ${p.sales} vendidos` : ''}` : '';
         els.desc.textContent = p.desc || 'Oferta encontrada na Shopee.';
         els.old.textContent = p.old || '';
         els.now.textContent = p.now || 'Consultar na Shopee';
@@ -270,7 +263,7 @@
         els.off.hidden = !p.off;
         els.cta.href = p.affLink || p.productLink || '#';
         els.cta.setAttribute('aria-label', `Comprar ${p.title || 'produto'} na Shopee`);
-        if (p.image && !/product-placeholder\.svg$/i.test(p.image)) { els.thumbEmoji.hidden = true; setImage(els.thumbImg, p.image, p.title || 'Produto'); }
+        if (p.image) { els.thumbEmoji.hidden = true; setImage(els.thumbImg, p.image, p.title || 'Produto'); }
         else { els.thumbEmoji.hidden = false; els.thumbEmoji.textContent = p.icon || '🛍️'; els.thumbImg.hidden = true; }
       }
 
@@ -291,48 +284,27 @@
 
       function renderGrid() {
         const frag = document.createDocumentFragment();
-        state.products.slice(0, 100).forEach((p) => {
+        state.products.slice(0, 24).forEach((p) => {
           const card = document.createElement('article');
           card.className = 'mini glass';
           const media = document.createElement('div'); media.className = 'mini-media'; media.style.background = p.accent || '#2a1c18';
-          if (p.image && !/product-placeholder\.svg$/i.test(p.image)) {
+          if (p.image) {
             const img = document.createElement('img');
             img.src = p.image; img.alt = p.title || 'Produto Shopee'; img.width = 360; img.height = 180;
-            img.loading = 'lazy'; img.decoding = 'async'; img.fetchPriority = 'low';
-            img.addEventListener('error', () => { img.remove(); media.textContent = p.icon || '🛍️'; }, { once: true });
-            media.appendChild(img);
+            img.loading = 'lazy'; img.decoding = 'async'; img.fetchPriority = 'low'; media.appendChild(img);
           } else media.textContent = p.icon || '🛍️';
-
           const content = document.createElement('div'); content.className = 'mini-content';
           const tag = document.createElement('div'); tag.className='mini-tag'; tag.style.setProperty('--mini-accent',p.accent||'#ee4d2d');
           const dot = document.createElement('i'); dot.setAttribute('aria-hidden','true'); tag.append(dot, document.createTextNode(p.tag||'Shopee'));
           const title = document.createElement('h3'); title.textContent = p.title || 'Produto Shopee';
-          const desc = document.createElement('p'); desc.textContent = p.desc || (p.shopName ? p.shopName : 'Oferta Shopee');
-
-          const rating = document.createElement('div'); rating.className='mini-rating';
-          if (p.rating) {
-            rating.append(document.createTextNode(`★ ${p.rating}`));
-            const rSales = document.createElement('span'); rSales.textContent = p.salesLabel ? `· ${p.salesLabel} vendidos` : ''; rating.append(rSales);
-          } else if (p.salesLabel) {
-            rating.append(document.createTextNode('🛒 '), Object.assign(document.createElement('span'), {textContent:`${p.salesLabel} vendidos`}));
-          }
-
-          const priceRow = document.createElement('div'); priceRow.className='mini-price-row';
-          if (p.old) { const old=document.createElement('span'); old.className='mini-old'; old.textContent=p.old; priceRow.appendChild(old); }
-          const price = document.createElement('span'); price.className='mini-price'; price.textContent=p.now||'Consultar'; priceRow.appendChild(price);
-          if (p.off) { const off=document.createElement('span'); off.className='mini-off'; off.textContent=p.off; priceRow.appendChild(off); }
-
-          const meta = document.createElement('div'); meta.className='mini-meta';
-          const shop = document.createElement('span'); shop.textContent = p.shopName || 'Shopee';
-          meta.append(shop);
-
+          const desc = document.createElement('p'); desc.textContent = p.desc || '';
           const bottom = document.createElement('div'); bottom.className='mini-bottom';
-          const link = document.createElement('a'); link.className='mini-link'; link.href=p.affLink||p.productLink||'#'; link.target='_blank'; link.rel='nofollow sponsored noopener'; link.textContent='Ver oferta →'; link.setAttribute('aria-label',`Ver oferta de ${p.title||'produto'} na Shopee`);
-          bottom.append(link);
-          content.append(tag,title,desc,rating,priceRow,meta,bottom); card.append(media,content); frag.append(card);
+          const price = document.createElement('span'); price.className='mini-price'; price.textContent=p.now||'Consultar';
+          const link = document.createElement('a'); link.className='mini-link'; link.href=p.affLink||p.productLink||'#'; link.target='_blank'; link.rel='nofollow sponsored noopener'; link.textContent='Comprar →'; link.setAttribute('aria-label',`Comprar ${p.title||'produto'} na Shopee`);
+          bottom.append(price,link); content.append(tag,title,desc,bottom); card.append(media,content); frag.append(card);
         });
         els.grid.replaceChildren(frag);
-        els.count.textContent = `${Math.min(state.products.length,100)} achados carregados · ${state.products.length} no catálogo`;
+        els.count.textContent = `${Math.min(state.products.length,24)} achados disponíveis`;
       }
 
       function formatRemaining(ms) {
@@ -364,24 +336,19 @@
         const res = await fetch(`./sync-meta.json?ts=${Date.now()}`, { cache: 'no-store', headers: { 'Accept': 'application/json' }});
         if (!res.ok) throw new Error(`Meta HTTP ${res.status}`);
         const meta = await res.json();
-        if (meta.nextUpdateAt) {
-          state.nextUpdateAt = meta.nextUpdateAt;
-        } else if (meta.status === 'seed' && !state.nextUpdateAt) {
-          state.nextUpdateAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-        }
+        if (meta.nextUpdateAt) state.nextUpdateAt = meta.nextUpdateAt;
         if (meta.completedAt) state.lastSyncAt = meta.completedAt;
         if (state.lastSyncAt) {
           const dt = new Date(state.lastSyncAt);
           const local = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-          els.updatedAtLabel.textContent = `Última atualização às ${local} · próxima sincronização em 30 minutos`;
-        } else {
-          els.updatedAtLabel.textContent = 'Primeira sincronização automática da Shopee em andamento';
+          els.updatedAtLabel.textContent = `Última sincronização ${local} · próxima atualização em 30 minutos`;
         }
+        return true;
       }
 
       async function loadProducts(isRefresh = false) {
         try {
-          const [res, metaResult] = await Promise.all([
+          const [res] = await Promise.all([
             fetch(`./products.json?ts=${Date.now()}`, { cache: 'no-store', headers: { 'Accept': 'application/json' }}),
             loadMeta().catch((error) => { console.warn('Falha no relógio de sincronização:', error); return null; })
           ]);
@@ -389,7 +356,10 @@
           const data = await res.json();
           state.products = Array.isArray(data) ? data.filter(p => p && (p.title || p.productName) && (p.affLink || p.productLink)) : [];
           renderGrid();
-          if (metaResult) startCountdown();
+          // O relógio inicia (ou reinicia) sempre que temos um nextUpdateAt válido,
+          // mesmo que o fetch do sync-meta.json de uma rodada específica tenha falhado
+          // (nesse caso mantemos contando a partir do último valor conhecido).
+          if (state.nextUpdateAt) startCountdown();
           els.status.textContent = state.products.length ? `${state.products.length} achados disponíveis · links de afiliado ativos.` : 'Catálogo inicial carregado. Sincronização automática em andamento…';
         } catch (error) {
           console.error('Falha ao carregar produtos:', error);
@@ -399,16 +369,12 @@
 
       function scheduleRefresh() {
         window.clearInterval(state.refreshTimer);
+        // A cada 20s confere se products.json/sync-meta.json mudaram no servidor.
+        // Isso mantém o relógio e o catálogo em sincronia logo após o bot publicar
+        // (a cada 30 min), sem esperar até 1 minuto parado em 00:00.
         state.refreshTimer = window.setInterval(async () => {
-          const wasExpired = state.nextUpdateAt && Date.parse(state.nextUpdateAt) <= Date.now();
-          try {
-            await loadMeta();
-            startCountdown();
-          } catch (error) {
-            console.warn('Falha ao atualizar o relógio:', error);
-          }
-          if (wasExpired) await loadProducts(true);
-        }, 10000);
+          await loadProducts(true);
+        }, 20000);
       }
 
       els.scanBtn.addEventListener('click', reveal, { passive: true });

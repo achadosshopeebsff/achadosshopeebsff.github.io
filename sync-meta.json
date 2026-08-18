@@ -1,9 +1,9 @@
 {
-  "status": "success",
-  "source": "previous-fallback",
+  "status": "seed",
   "intervalMinutes": 30,
-  "startedAt": "2026-08-18T23:35:48.330Z",
-  "completedAt": "2026-08-18T23:35:49.871Z",
-  "nextUpdateAt": "2026-08-19T00:05:49.871Z",
-  "productsCount": 20
+  "startedAt": null,
+  "completedAt": null,
+  "nextUpdateAt": "2026-08-18T22:39:24.548245Z",
+  "productsCount": 20,
+  "successfulCount": 0
 }

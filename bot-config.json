@@ -1,14 +1,14 @@
 {
   "mode": "initial-fixed-then-dynamic-api",
   "refreshIntervalMinutes": 30,
-  "maxProducts": 100,
-  "minDynamicProducts": 100,
-  "targetProducts": 100,
-  "pagesPerKeyword": 4,
-  "limitPerQuery": 100,
-  "topPerformingLimit": 100,
+  "maxProducts": 30,
+  "minDynamicProducts": 24,
+  "pagesPerKeyword": 1,
+  "limitPerQuery": 50,
+  "topPerformingLimit": 50,
   "includeTopPerforming": true,
   "preserveCatalogOnApiFailure": true,
+  "subIds": ["achadosshopeebsf", "auto", "site"],
   "keywords": [
     "fone bluetooth",
     "air fryer",
@@ -26,6 +26,5 @@
     "eletronicos",
     "gadget",
     "ofertas"
-  ],
-  "topPerformingPages": 4
+  ]
 }
