@@ -46,3 +46,7 @@ Endpoint Brasil:
 A integração usa `productOfferV2` com `keyword`, `sortType`, `listType`, paginação e os campos compatíveis do objeto `ProductOfferV2`, como `itemId`, `productName`, `productLink`, `offerLink`, `imageUrl`, `priceMin`, `priceMax`, `priceDiscountRate`, `sales`, `ratingStar`, `commissionRate`, `commission`, `shopId` e `shopName`.
 
 Referência: Explorer oficial da Shopee Affiliate Open API.
+
+
+### Catálogo dinâmico
+O bot tenta publicar 100 produtos por sincronização. O catálogo inicial fixo é apenas fallback para evitar página vazia. Após uma sincronização válida, `products.json` e `links.json` são regenerados com os produtos retornados pela API e seus links de afiliado.

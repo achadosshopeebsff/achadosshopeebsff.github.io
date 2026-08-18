@@ -1,11 +1,12 @@
 {
   "mode": "initial-fixed-then-dynamic-api",
   "refreshIntervalMinutes": 30,
-  "maxProducts": 80,
-  "minDynamicProducts": 20,
-  "pagesPerKeyword": 1,
-  "limitPerQuery": 50,
-  "topPerformingLimit": 50,
+  "maxProducts": 100,
+  "minDynamicProducts": 100,
+  "targetProducts": 100,
+  "pagesPerKeyword": 2,
+  "limitPerQuery": 100,
+  "topPerformingLimit": 100,
   "includeTopPerforming": true,
   "preserveCatalogOnApiFailure": true,
   "keywords": [

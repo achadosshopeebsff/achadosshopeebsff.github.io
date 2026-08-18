@@ -166,7 +166,7 @@
       <div class="next-update glass" id="nextUpdate" role="status" aria-live="polite" aria-label="Contagem para a próxima atualização">
         <span class="next-update-label">PRÓXIMA ATUALIZAÇÃO AUTOMÁTICA</span>
         <strong id="countdown">30:00</strong>
-        <span class="next-update-sub" id="updatedAtLabel">Sincronização com a Shopee a cada 30 minutos</span>
+        <span class="next-update-sub" id="updatedAtLabel">Próxima atualização automática dos produtos em até 30 minutos</span>
       </div>
 
       <div class="reveal-stage">
@@ -284,7 +284,7 @@
 
       function renderGrid() {
         const frag = document.createDocumentFragment();
-        state.products.slice(0, 24).forEach((p) => {
+        state.products.slice(0, 100).forEach((p) => {
           const card = document.createElement('article');
           card.className = 'mini glass';
           const media = document.createElement('div'); media.className = 'mini-media'; media.style.background = p.accent || '#2a1c18';
@@ -304,7 +304,7 @@
           bottom.append(price,link); content.append(tag,title,desc,bottom); card.append(media,content); frag.append(card);
         });
         els.grid.replaceChildren(frag);
-        els.count.textContent = `${Math.min(state.products.length,24)} achados disponíveis`;
+        els.count.textContent = `${Math.min(state.products.length,100)} achados carregados · ${state.products.length} no catálogo`;
       }
 
       function formatRemaining(ms) {
@@ -336,12 +336,18 @@
         const res = await fetch(`./sync-meta.json?ts=${Date.now()}`, { cache: 'no-store', headers: { 'Accept': 'application/json' }});
         if (!res.ok) throw new Error(`Meta HTTP ${res.status}`);
         const meta = await res.json();
-        if (meta.nextUpdateAt) state.nextUpdateAt = meta.nextUpdateAt;
+        if (meta.nextUpdateAt) {
+          state.nextUpdateAt = meta.nextUpdateAt;
+        } else if (meta.status === 'seed' && !state.nextUpdateAt) {
+          state.nextUpdateAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+        }
         if (meta.completedAt) state.lastSyncAt = meta.completedAt;
         if (state.lastSyncAt) {
           const dt = new Date(state.lastSyncAt);
           const local = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-          els.updatedAtLabel.textContent = `Última sincronização ${local} · próxima atualização em 30 minutos`;
+          els.updatedAtLabel.textContent = `Última atualização às ${local} · próxima sincronização em 30 minutos`;
+        } else {
+          els.updatedAtLabel.textContent = 'Primeira sincronização automática da Shopee em andamento';
         }
       }
 
@@ -366,9 +372,15 @@
       function scheduleRefresh() {
         window.clearInterval(state.refreshTimer);
         state.refreshTimer = window.setInterval(async () => {
-          await loadProducts(true);
-          if (state.nextUpdateAt && Date.parse(state.nextUpdateAt) <= Date.now()) await loadProducts(true);
-        }, 60000);
+          const wasExpired = state.nextUpdateAt && Date.parse(state.nextUpdateAt) <= Date.now();
+          try {
+            await loadMeta();
+            startCountdown();
+          } catch (error) {
+            console.warn('Falha ao atualizar o relógio:', error);
+          }
+          if (wasExpired) await loadProducts(true);
+        }, 10000);
       }
 
       els.scanBtn.addEventListener('click', reveal, { passive: true });
