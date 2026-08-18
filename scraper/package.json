@@ -1,8 +1,8 @@
 {
-  "name": "shopee-affiliate-sync",
-  "version": "2.0.0",
+  "name": "shopee-affiliate-auto-bot",
+  "version": "3.0.0",
   "private": true,
-  "description": "Atualiza produtos do site via Shopee Affiliate Open API",
+  "description": "Descobre, ranqueia e publica automaticamente achadinhos da Shopee via Affiliate Open API",
   "main": "scrape-all.js",
   "engines": {
     "node": ">=20"
