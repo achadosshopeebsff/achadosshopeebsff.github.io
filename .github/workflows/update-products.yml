@@ -8,7 +8,7 @@ on:
       - "scraper/**"
       - ".github/workflows/update-products.yml"
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -42,6 +42,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add products.json links.json bot-config.json scraper/
+          git add products.json links.json bot-config.json fallback-products.json scraper/
           git diff --staged --quiet || git commit -m "Atualizar achadinhos Shopee"
           git push
