@@ -276,7 +276,7 @@ function fixedAsFallback(fixed) {
 async function searchKeyword(keyword, config) {
   const results = [];
   const pages = Math.max(1, Math.min(config.pagesPerKeyword || 2, 5));
-  const limit = Math.max(1, Math.min(config.limitPerQuery || 50, 500));
+  const limit = Math.max(1, Math.min(config.limitPerQuery || 100, 500));
   for (let page = 1; page <= pages; page++) {
     const data = await graphql(buildSearchQuery({ keyword, sortType: 2, page, limit }));
     const connection = data?.productOfferV2;
@@ -287,31 +287,61 @@ async function searchKeyword(keyword, config) {
 }
 
 async function topPerforming(config) {
-  const limit = Math.max(1, Math.min(config.topPerformingLimit || 50, 500));
+  const limit = Math.max(1, Math.min(config.topPerformingLimit || 100, 500));
   const data = await graphql(buildTopQuery({ page: 1, limit }));
   return data?.productOfferV2?.nodes || [];
+}
+
+async function mapWithConcurrency(items, concurrency, worker) {
+  const results = [];
+  let cursor = 0;
+  async function runner() {
+    while (true) {
+      const index = cursor++;
+      if (index >= items.length) return;
+      try {
+        results[index] = await worker(items[index], index);
+      } catch (error) {
+        results[index] = { error };
+      }
+    }
+  }
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => runner());
+  await Promise.all(workers);
+  return results;
 }
 
 async function collectDynamicProducts(config) {
   const map = new Map();
   const keywords = Array.isArray(config.keywords) ? config.keywords : [];
 
-  for (const keyword of keywords) {
-    try {
-      const nodes = await searchKeyword(keyword, config);
-      console.log(`  ✓ ${keyword}: ${nodes.length} produtos encontrados`);
-      for (const node of nodes) {
-        const id = String(node.itemId || '');
-        if (id) map.set(id, node);
-      }
-    } catch (error) {
-      console.warn(`  ⚠ ${keyword}: ${error.message}`);
+  const keywordResults = await mapWithConcurrency(keywords, 4, async (keyword) => {
+    const nodes = await searchKeyword(keyword, config);
+    console.log(`  ✓ ${keyword}: ${nodes.length} produtos encontrados`);
+    return nodes;
+  });
+
+  for (const result of keywordResults) {
+    if (result?.error) {
+      console.warn(`  ⚠ consulta: ${result.error.message}`);
+      continue;
+    }
+    for (const node of result || []) {
+      const id = String(node.itemId || '');
+      if (id) map.set(id, node);
     }
   }
 
   if (config.includeTopPerforming !== false) {
     try {
-      const nodes = await topPerforming(config);
+      const nodes = [];
+      const pages = Math.max(1, Math.min(config.pagesPerKeyword || 2, 5));
+      for (let page = 1; page <= pages; page++) {
+        const data = await graphql(buildTopQuery({ page, limit: config.topPerformingLimit || 100 }));
+        const connection = data?.productOfferV2;
+        nodes.push(...(connection?.nodes || []));
+        if (!connection?.pageInfo?.hasNextPage) break;
+      }
       console.log(`  ✓ top-performing: ${nodes.length} produtos encontrados`);
       for (const node of nodes) {
         const id = String(node.itemId || '');
@@ -358,11 +388,12 @@ function writeSyncMeta({ startedAt, completedAt, productsCount, source }) {
 async function main() {
   const config = readJson(CONFIG_FILE, {
     refreshIntervalMinutes: 30,
-    maxProducts: 80,
-    minDynamicProducts: 20,
-    pagesPerKeyword: 1,
-    limitPerQuery: 50,
-    topPerformingLimit: 50,
+    maxProducts: 100,
+    minDynamicProducts: 100,
+    targetProducts: 100,
+    pagesPerKeyword: 2,
+    limitPerQuery: 100,
+    topPerformingLimit: 100,
     includeTopPerforming: true,
     keywords: []
   });
@@ -374,7 +405,7 @@ async function main() {
 
   console.log('🤖 Bot de achadinhos Shopee iniciado');
   console.log(`🟢 Catálogo inicial: ${fixed.length} produtos fixos`);
-  console.log(`🔄 Depois, catálogo dinâmico: até ${config.maxProducts || 80} produtos`);
+  console.log(`🔄 Catálogo dinâmico: alvo de ${config.targetProducts || config.maxProducts || 100} produtos`);
   console.log(`⏱️ Atualização programada: a cada ${config.refreshIntervalMinutes || 30} minutos`);
 
   let dynamic = [];
@@ -387,7 +418,7 @@ async function main() {
     console.warn(`⚠️ Falha total na coleta dinâmica: ${error.message}`);
   }
 
-  const hasEnoughDynamic = dynamic.length >= Math.max(1, config.minDynamicProducts || 20);
+  const hasEnoughDynamic = dynamic.length >= Math.max(1, config.minDynamicProducts || config.targetProducts || 100);
   const previousIsDynamic = Array.isArray(previous) && previous.some((p) => p?.source === 'api-dynamic');
 
   let output;
@@ -398,7 +429,7 @@ async function main() {
   } else if (Array.isArray(previous) && previous.length > 0) {
     output = previous;
     source = previousIsDynamic ? 'previous-dynamic' : 'previous-fallback';
-    console.warn(`⚠️ Só ${dynamic.length} produtos dinâmicos válidos; mantendo catálogo anterior.`);
+    console.warn(`⚠️ Só ${dynamic.length} produtos dinâmicos válidos; mantendo catálogo anterior para evitar reduzir a loja.`);
   } else {
     output = fixedAsFallback(fixed).map((p) => ({ ...p, source: 'fixed-fallback' }));
     source = 'fixed-fallback';
@@ -414,7 +445,7 @@ async function main() {
   console.log(`\n✅ products.json: ${output.length} produtos`);
   console.log(`🔗 links.json: ${affiliateLinks.length} links de afiliado`);
   console.log(`📦 fonte publicada: ${source}`);
-  console.log(`⏱️ próxima atualização: 30 minutos após esta conclusão.`);
+  console.log(`⏱️ próxima atualização: ${config.refreshIntervalMinutes || 30} minutos após esta conclusão.`);
 }
 
 main().catch((error) => {
