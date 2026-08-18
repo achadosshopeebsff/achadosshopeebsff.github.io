@@ -1,0 +1,9 @@
+{
+  "status": "seed",
+  "intervalMinutes": 30,
+  "startedAt": null,
+  "completedAt": null,
+  "nextUpdateAt": "2026-08-18T22:39:24.548245Z",
+  "productsCount": 20,
+  "successfulCount": 0
+}

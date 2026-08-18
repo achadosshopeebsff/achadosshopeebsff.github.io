@@ -1,12 +1,29 @@
 {
-  "mode": "fixed-products",
-  "refresh": "hourly",
-  "api": {
-    "queryOnlyByItemId": true,
-    "preserveAffiliateLinks": true,
-    "preserveCatalogOnApiFailure": true
-  },
-  "output": {
-    "maxProducts": 20
-  }
+  "mode": "initial-fixed-then-dynamic-api",
+  "refreshIntervalMinutes": 30,
+  "maxProducts": 80,
+  "minDynamicProducts": 20,
+  "pagesPerKeyword": 1,
+  "limitPerQuery": 50,
+  "topPerformingLimit": 50,
+  "includeTopPerforming": true,
+  "preserveCatalogOnApiFailure": true,
+  "keywords": [
+    "fone bluetooth",
+    "air fryer",
+    "smartwatch",
+    "caixa de som bluetooth",
+    "suporte celular",
+    "led",
+    "organizador",
+    "utensilios cozinha",
+    "beleza",
+    "moda feminina",
+    "moda masculina",
+    "casa e decoracao",
+    "acessorios celular",
+    "eletronicos",
+    "gadget",
+    "ofertas"
+  ]
 }

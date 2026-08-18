@@ -1,35 +1,48 @@
-# Achados Shopee BSF — catálogo fixo + atualização automática
+# achadosshopeebsf — catálogo automático de achadinhos Shopee
 
-Este projeto **não faz busca por palavra-chave** e não cria links para páginas de pesquisa.
+O projeto usa a **Shopee Affiliate Open API (Brasil)** com duas fases:
 
-O catálogo é composto pelos produtos definidos em `fixed-products.json`. Cada item possui:
+1. **Catálogo inicial:** os 20 produtos fornecidos no `fixed-products.json` ficam publicados desde o primeiro acesso para o site nunca começar vazio.
+2. **Catálogo automático:** após uma sincronização válida, o bot consulta `productOfferV2` por palavras-chave e também uma lista `top-performing`, ranqueia os melhores produtos e publica até 80 itens. Os produtos dinâmicos usam o `offerLink` afiliado retornado pela API; se esse campo vier vazio, o bot tenta `generateShortLink` com o `productLink`.
 
-- Item ID
-- Shop ID (extraído do `productLink`)
-- nome/preço/vendas/comissão de referência
-- `productLink` direto do item
-- `offerLink` **de afiliado já fornecido**
+## Atualização
 
-A cada hora, o GitHub Actions consulta `productOfferV2` **diretamente por `shopId + itemId`** para atualizar apenas os dados daquele mesmo produto, incluindo imagem, preço, vendas, avaliação, comissão e nome da loja.
+- GitHub Actions: **a cada 30 minutos** (`00` e `30` de cada hora, UTC).
+- Também roda em `push` relevante e pode ser acionado manualmente.
+- `sync-meta.json` registra a última conclusão e calcula a próxima atualização para o contador do site.
+- O navegador verifica o catálogo periodicamente sem chamar a Shopee diretamente.
 
-O bot **preserva o `offerLink` fixo de cada produto**. Ele nunca substitui o link por `shopee.com.br/search?...` e nunca cria um link de pesquisa.
+## Regra para não deixar vazio
 
-`links.json` contém apenas os `offerLink` de afiliado.
+Se uma execução da API falhar ou retornar poucos produtos válidos:
+
+- o catálogo anterior é preservado;
+- na primeira execução sem catálogo anterior, os 20 produtos fixos são publicados;
+- `products.json` nunca é zerado por uma falha temporária da Shopee.
+
+## Arquivos
+
+- `fixed-products.json`: somente o catálogo inicial/fallback.
+- `products.json`: catálogo atualmente publicado.
+- `links.json`: links afiliados correspondentes ao catálogo atualmente publicado.
+- `bot-config.json`: palavras-chave, quantidade, ranking e frequência.
+- `sync-meta.json`: relógio da sincronização.
+- `scraper/scrape-all.js`: coletor + ranking + geração/preservação dos links afiliados.
 
 ## Secrets do GitHub
 
-Cadastre em `Settings → Secrets and variables → Actions`:
+Configure em **Settings → Secrets and variables → Actions**:
 
 - `SHOPEE_APP_ID`
 - `SHOPEE_APP_SECRET`
 
-As credenciais nunca são gravadas nos arquivos públicos.
+Nunca coloque o Secret no HTML, JSON público ou outro arquivo versionado.
 
-## Atualização
+## API
 
-- Executa automaticamente de hora em hora.
-- Também pode ser executado em `Actions → Atualizar produtos Shopee → Run workflow`.
-- Se a Shopee falhar temporariamente, o catálogo anterior permanece publicado.
-- O frontend lê `products.json` e não chama a API da Shopee diretamente.
+Endpoint Brasil:
+`https://open-api.affiliate.shopee.com.br/graphql`
 
-A API oficial brasileira usa GraphQL em `https://open-api.affiliate.shopee.com.br/graphql` e o `productOfferV2` permite consultar um produto conhecido por `itemId` e `shopId`, retornando `imageUrl`, `priceMin`, `sales`, `ratingStar`, `commission`, `productLink` e `offerLink`.
+A integração usa `productOfferV2` com `keyword`, `sortType`, `listType`, paginação e os campos compatíveis do objeto `ProductOfferV2`, como `itemId`, `productName`, `productLink`, `offerLink`, `imageUrl`, `priceMin`, `priceMax`, `priceDiscountRate`, `sales`, `ratingStar`, `commissionRate`, `commission`, `shopId` e `shopName`.
+
+Referência: Explorer oficial da Shopee Affiliate Open API.

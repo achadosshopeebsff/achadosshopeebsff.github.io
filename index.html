@@ -71,6 +71,10 @@
     .scanning .ring{animation:spin .8s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
     .status{min-height:24px;color:var(--muted);font-size:13px}
+    .next-update{width:min(440px,100%);margin:12px auto 26px;padding:12px 16px;border-radius:16px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;text-align:center}
+    .next-update-label{font:700 9px "JetBrains Mono",monospace;color:var(--muted);letter-spacing:.08em}
+    .next-update strong{font:800 18px "JetBrains Mono",monospace;color:var(--accent);min-width:62px}
+    .next-update-sub{width:100%;font-size:11px;color:var(--muted)}
     .reveal-stage{width:min(620px,100%);margin:12px auto 0}
     .card{
       opacity:0;transform:translateY(10px);transition:opacity .22s ease,transform .22s ease;
@@ -149,7 +153,7 @@
     <section class="hero wrap" id="scan" aria-labelledby="hero-title">
       <div class="eyebrow glass"><span class="live" aria-hidden="true"></span> radar de achados · shopee</div>
       <h1 id="hero-title">Encontre seu próximo<br><span class="grad">achado</span> em segundos.</h1>
-      <p class="sub">Produtos selecionados automaticamente da Shopee com foto, preço e links atualizados.</p>
+      <p class="sub">Produtos selecionados automaticamente da Shopee com foto, preço e link de afiliado atualizado.</p>
 
       <div class="scanner" id="scanner" aria-hidden="true">
         <div class="ring"></div>
@@ -159,6 +163,11 @@
         </button>
       </div>
       <p class="status" id="status" role="status" aria-live="polite">Carregando achados…</p>
+      <div class="next-update glass" id="nextUpdate" role="status" aria-live="polite" aria-label="Contagem para a próxima atualização">
+        <span class="next-update-label">PRÓXIMA ATUALIZAÇÃO AUTOMÁTICA</span>
+        <strong id="countdown">30:00</strong>
+        <span class="next-update-sub" id="updatedAtLabel">Sincronização com a Shopee a cada 30 minutos</span>
+      </div>
 
       <div class="reveal-stage">
         <article class="card glass" id="productCard" aria-live="polite" aria-hidden="true">
@@ -191,7 +200,7 @@
     <section aria-labelledby="achados-title">
       <div class="section-head" id="achados">
         <h2 id="achados-title">Mais achados</h2>
-        <span id="count">atualizados automaticamente</span>
+        <span id="count">Atualização automática</span>
       </div>
       <div class="grid" id="grid" aria-live="polite"></div>
     </section>
@@ -209,11 +218,11 @@
     (() => {
       'use strict';
 
-      const state = { products: [], lastIndex: -1, busy: false, refreshTimer: null };
+      const state = { products: [], lastIndex: -1, busy: false, refreshTimer: null, countdownTimer: null, nextUpdateAt: null, lastSyncAt: null };
       const $ = (id) => document.getElementById(id);
       const els = {
         scanner: $('scanner'), scanBtn: $('scanBtn'), card: $('productCard'), again: $('againBtn'),
-        grid: $('grid'), status: $('status'), count: $('count'),
+        grid: $('grid'), status: $('status'), count: $('count'), nextUpdate: $('nextUpdate'), countdown: $('countdown'), updatedAtLabel: $('updatedAtLabel'),
         thumb: $('cThumb'), thumbImg: $('cThumbImg'), thumbEmoji: $('cThumbEmoji'),
         tag: $('cTag'), name: $('cName'), stars: $('cStars'), desc: $('cDesc'),
         old: $('cOld'), now: $('cNow'), off: $('cOff'), cta: $('cCta')
@@ -298,23 +307,68 @@
         els.count.textContent = `${Math.min(state.products.length,24)} achados disponíveis`;
       }
 
+      function formatRemaining(ms) {
+        const total = Math.max(0, Math.ceil(ms / 1000));
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const sec = total % 60;
+        return h > 0 ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}` : `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+      }
+
+      function updateCountdown() {
+        if (!state.nextUpdateAt) return;
+        const remaining = Date.parse(state.nextUpdateAt) - Date.now();
+        if (remaining <= 0) {
+          els.countdown.textContent = '00:00';
+          els.updatedAtLabel.textContent = 'Sincronização programada. Recarregando o catálogo…';
+          return;
+        }
+        els.countdown.textContent = formatRemaining(remaining);
+      }
+
+      function startCountdown() {
+        window.clearInterval(state.countdownTimer);
+        updateCountdown();
+        state.countdownTimer = window.setInterval(updateCountdown, 1000);
+      }
+
+      async function loadMeta() {
+        const res = await fetch(`./sync-meta.json?ts=${Date.now()}`, { cache: 'no-store', headers: { 'Accept': 'application/json' }});
+        if (!res.ok) throw new Error(`Meta HTTP ${res.status}`);
+        const meta = await res.json();
+        if (meta.nextUpdateAt) state.nextUpdateAt = meta.nextUpdateAt;
+        if (meta.completedAt) state.lastSyncAt = meta.completedAt;
+        if (state.lastSyncAt) {
+          const dt = new Date(state.lastSyncAt);
+          const local = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+          els.updatedAtLabel.textContent = `Última sincronização ${local} · próxima atualização em 30 minutos`;
+        }
+      }
+
       async function loadProducts(isRefresh = false) {
         try {
-          const res = await fetch(`./products.json?ts=${Date.now()}`, { cache: 'no-store', headers: { 'Accept': 'application/json' }});
+          const [res, metaResult] = await Promise.all([
+            fetch(`./products.json?ts=${Date.now()}`, { cache: 'no-store', headers: { 'Accept': 'application/json' }}),
+            loadMeta().catch((error) => { console.warn('Falha no relógio de sincronização:', error); return null; })
+          ]);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
           state.products = Array.isArray(data) ? data.filter(p => p && (p.title || p.productName) && (p.affLink || p.productLink)) : [];
           renderGrid();
-          els.status.textContent = state.products.length ? `${state.products.length} achados carregados.` : 'Atualizando catálogo…';
+          if (metaResult) startCountdown();
+          els.status.textContent = state.products.length ? `${state.products.length} achados disponíveis · links de afiliado ativos.` : 'Catálogo inicial carregado. Sincronização automática em andamento…';
         } catch (error) {
           console.error('Falha ao carregar produtos:', error);
-          els.status.textContent = state.products.length ? 'Mantendo os achados já carregados.' : 'Atualizando catálogo…';
+          els.status.textContent = state.products.length ? 'Mantendo os achados já carregados enquanto a API sincroniza.' : 'Catálogo inicial em carregamento…';
         }
       }
 
       function scheduleRefresh() {
         window.clearInterval(state.refreshTimer);
-        state.refreshTimer = window.setInterval(() => loadProducts(true), 60000);
+        state.refreshTimer = window.setInterval(async () => {
+          await loadProducts(true);
+          if (state.nextUpdateAt && Date.parse(state.nextUpdateAt) <= Date.now()) await loadProducts(true);
+        }, 60000);
       }
 
       els.scanBtn.addEventListener('click', reveal, { passive: true });
