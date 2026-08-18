@@ -1,35 +1,54 @@
 # achadosshopeebsf
 
-Site de achados/afiliados da Shopee com busca automática de produtos.
+Site estático de achados Shopee com atualização automática pela **Shopee Affiliate Open API**.
 
-## Como adicionar um produto novo
+## O que foi otimizado
 
-1. Abra `links.json`.
-2. Adicione o link do produto (ou link de afiliado curto `s.shopee.com.br/...`) na lista.
-3. Dê commit e push.
-4. O GitHub Actions roda sozinho, lê o produto na Shopee e atualiza `products.json`.
-5. Em alguns minutos o site já mostra o produto novo — nada precisa ser digitado no código.
+- Removido Puppeteer/scraping de página da Shopee.
+- O navegador do visitante não chama a API da Shopee.
+- `index.html` usa menos animações, menos blur e menos trabalho no scroll.
+- Cards usam `content-visibility`, imagens `lazy` e `decoding="async"`.
+- DOM criado com `DocumentFragment` em vez de montar um HTML gigante com `innerHTML`.
+- Layout responsivo para telas pequenas, tablets e desktop.
+- Melhorias de acessibilidade: skip link, foco visível, `aria-live`, rótulos de botões e alvos de toque.
+- Produtos/preços são salvos em `products.json`, então o carregamento do site continua rápido mesmo quando a Shopee está lenta.
+- O workflow atualiza os dados a cada 6 horas e também quando `links.json` ou o código do sincronizador muda.
 
-O robô também roda automaticamente todo dia (worfklow agendado) para manter os preços atualizados.
+## Configurar as credenciais
 
-## Rodar manualmente (opcional)
+**Não coloque App ID/Secret dentro do `index.html`, JavaScript do navegador, `products.json`, Git ou arquivos públicos.**
 
-Se quiser forçar a atualização sem esperar:
-1. Vá na aba **Actions** do repositório no GitHub.
-2. Escolha o workflow **"Atualizar produtos da Shopee"**.
-3. Clique em **"Run workflow"**.
+No GitHub:
+
+1. Abra `Settings → Secrets and variables → Actions`.
+2. Crie `SHOPEE_APP_ID` com seu App ID.
+3. Crie `SHOPEE_APP_SECRET` com sua Secret.
+4. Rode `Actions → Atualizar produtos da Shopee → Run workflow`.
+
+As credenciais ficam somente no ambiente do GitHub Actions.
+
+## Produtos
+
+Edite `links.json` com URLs da Shopee. O sincronizador resolve links curtos, identifica `shopId/itemId` quando disponível e consulta `productOfferV2` para título, imagem, preço, desconto, vendas, avaliação e link de oferta.
+
+A API brasileira de afiliados é GraphQL e disponibiliza `productOfferV2` e `generateShortLink`; o endpoint usado pelo projeto é `https://open-api.affiliate.shopee.com.br/graphql`. citeturn592839search0turn628693search0
+
+### Observação importante sobre preço antigo
+
+A API pública não fornece necessariamente um campo de “preço antigo” independente. Quando existe `priceDiscountRate`, o projeto estima o preço original a partir do preço atual; por isso ele pode variar alguns centavos em relação ao anúncio visual da Shopee. citeturn592839search1
+
+## Segurança
+
+Se uma credencial real já foi compartilhada fora do seu cofre de secrets, prefira regenerá-la no painel da Shopee e depois salvar a nova chave apenas como GitHub Secret.
+
+## Logo
+
+Coloque `logo.png` na raiz do projeto. O HTML já usa dimensões fixas para evitar layout shift.
 
 ## Estrutura
 
-- `links.json` — só os links dos produtos (a única coisa que você edita manualmente).
-- `products.json` — gerado automaticamente pelo robô (título, preço, foto, descrição, avaliação).
-- `scraper/scrape-all.js` — o robô que lê a Shopee.
-- `.github/workflows/update-products.yml` — o que dispara o robô automaticamente.
-- `index.html` — o site, que carrega `products.json` sozinho.
-
-## Se o robô parar de encontrar os dados
-
-A Shopee muda o layout do site deles de vez em quando, o que muda as classes CSS usadas pelo robô (`auau15`, `uLEz5u`, `pyzxvq`/`pw3J3G`, `cDKs6x`). Se isso acontecer:
-1. Abra um produto na Shopee pelo navegador.
-2. Botão direito no título → Inspecionar → veja a classe atual.
-3. Atualize os seletores em `scraper/scrape-all.js`.
+- `index.html` — frontend rápido e responsivo.
+- `products.json` — cache público dos produtos, usado pelo frontend.
+- `links.json` — URLs de origem dos produtos.
+- `scraper/scrape-all.js` — sincronização com a API.
+- `.github/workflows/update-products.yml` — atualização automática.
