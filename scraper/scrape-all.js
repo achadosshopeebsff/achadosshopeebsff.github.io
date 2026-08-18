@@ -96,20 +96,16 @@ function productFields() {
   `;
 }
 
-function buildSearchQuery({ keyword, sortType = 1, page = 1, limit = 50, listType = null }) {
-  const safeKeyword = JSON.stringify(String(keyword));
-  const listTypeArg = Number.isInteger(listType) ? `, listType: ${listType}` : '';
-  return `query {
-    productOfferV2(
-      keyword: ${safeKeyword},
-      sortType: ${sortType},
-      page: ${page},
-      limit: ${limit}${listTypeArg}
-    ) {
-      nodes { ${productFields()} }
-      pageInfo { page limit hasNextPage }
-    }
-  }`;
+function buildSearchQuery({ keyword = null, sortType = 1, page = 1, limit = 50, listType = null, shopId = null, itemId = null }) {
+  const args = [];
+  if (keyword) args.push(`keyword: ${JSON.stringify(String(keyword))}`);
+  if (Number.isInteger(shopId)) args.push(`shopId: ${shopId}`);
+  if (Number.isInteger(itemId)) args.push(`itemId: ${itemId}`);
+  if (Number.isInteger(sortType)) args.push(`sortType: ${sortType}`);
+  if (Number.isInteger(page)) args.push(`page: ${page}`);
+  if (Number.isInteger(limit)) args.push(`limit: ${limit}`);
+  if (Number.isInteger(listType)) args.push(`listType: ${listType}`);
+  return `query { productOfferV2(${args.join(', ')}) { nodes { ${productFields()} } pageInfo { page limit hasNextPage } } }`;
 }
 
 function buildTopQuery({ page = 1, limit = 50 }) {
@@ -210,7 +206,8 @@ function scoreProduct(p) {
 
 function normalizeProduct(product, affiliateLink) {
   const price = toNumber(product.priceMin || product.priceMax);
-  const discount = toNumber(product.priceDiscountRate);
+  let discount = toNumber(product.priceDiscountRate);
+  if (discount > 0 && discount <= 1) discount *= 100;
   const oldPrice = discount > 0 && price > 0 ? price / Math.max(0.01, 1 - discount / 100) : 0;
   const rating = ratingNumber(product.ratingStar);
   const sales = toNumber(product.sales);
@@ -314,9 +311,11 @@ async function mapWithConcurrency(items, concurrency, worker) {
 async function collectDynamicProducts(config) {
   const map = new Map();
   const keywords = Array.isArray(config.keywords) ? config.keywords : [];
+  const pages = Math.max(1, Math.min(Number(config.pagesPerKeyword) || 4, 8));
+  const limit = Math.max(20, Math.min(Number(config.limitPerQuery) || 100, 500));
 
-  const keywordResults = await mapWithConcurrency(keywords, 4, async (keyword) => {
-    const nodes = await searchKeyword(keyword, config);
+  const keywordResults = await mapWithConcurrency(keywords, 3, async (keyword) => {
+    const nodes = await searchKeyword(keyword, { ...config, pagesPerKeyword: pages, limitPerQuery: limit });
     console.log(`  ✓ ${keyword}: ${nodes.length} produtos encontrados`);
     return nodes;
   });
@@ -335,9 +334,9 @@ async function collectDynamicProducts(config) {
   if (config.includeTopPerforming !== false) {
     try {
       const nodes = [];
-      const pages = Math.max(1, Math.min(config.pagesPerKeyword || 2, 5));
-      for (let page = 1; page <= pages; page++) {
-        const data = await graphql(buildTopQuery({ page, limit: config.topPerformingLimit || 100 }));
+      const topPages = Math.max(1, Math.min(Number(config.topPerformingPages) || 4, 8));
+      for (let page = 1; page <= topPages; page++) {
+        const data = await graphql(buildTopQuery({ page, limit: Math.min(500, Number(config.topPerformingLimit) || 100) }));
         const connection = data?.productOfferV2;
         nodes.push(...(connection?.nodes || []));
         if (!connection?.pageInfo?.hasNextPage) break;
@@ -353,6 +352,43 @@ async function collectDynamicProducts(config) {
   }
 
   return [...map.values()];
+}
+
+async function enrichFixedProducts(fixed) {
+  const results = await mapWithConcurrency(fixed, 4, async (item) => {
+    const shopId = Number(String(item.productLink || '').match(/\/product\/(\d+)\//)?.[1]);
+    const itemId = Number(item.itemId);
+    if (!Number.isFinite(shopId) || !Number.isFinite(itemId)) return item;
+    try {
+      const data = await graphql(buildSearchQuery({ shopId, itemId, page: 1, limit: 10 }));
+      const node = data?.productOfferV2?.nodes?.find((n) => String(n.itemId) === String(itemId)) || data?.productOfferV2?.nodes?.[0];
+      if (!node) return item;
+      return { ...item, api: node };
+    } catch (error) {
+      console.warn(`  ⚠ seed ${itemId}: ${error.message}`);
+      return item;
+    }
+  });
+  return results;
+}
+
+function enrichedFixedFallback(fixed) {
+  return fixed.map((item) => {
+    const api = item.api;
+    if (api?.imageUrl || api?.priceMin || api?.offerLink) {
+      const link = item.offerLink || api.offerLink || item.productLink;
+      const product = normalizeProduct({
+        ...api,
+        itemId: item.itemId,
+        productName: api.productName || item.itemName,
+        productLink: api.productLink || item.productLink,
+        shopId: api.shopId || Number(String(item.productLink).match(/\/product\/(\d+)\//)?.[1]),
+        shopName: api.shopName || item.shopName,
+      }, link);
+      return { ...product, source: 'fixed-seed' };
+    }
+    return fixedAsFallback([item])[0] && { ...fixedAsFallback([item])[0], image: '' , source: 'fixed-seed' };
+  });
 }
 
 async function buildDynamicCatalog(nodes, config) {
@@ -408,6 +444,13 @@ async function main() {
   console.log(`🔄 Catálogo dinâmico: alvo de ${config.targetProducts || config.maxProducts || 100} produtos`);
   console.log(`⏱️ Atualização programada: a cada ${config.refreshIntervalMinutes || 30} minutos`);
 
+  let enrichedFixed = fixed;
+  try {
+    enrichedFixed = await enrichFixedProducts(fixed);
+  } catch (error) {
+    console.warn(`⚠️ Falha ao enriquecer catálogo inicial: ${error.message}`);
+  }
+
   let dynamic = [];
   try {
     const candidates = await collectDynamicProducts(config);
@@ -431,7 +474,7 @@ async function main() {
     source = previousIsDynamic ? 'previous-dynamic' : 'previous-fallback';
     console.warn(`⚠️ Só ${dynamic.length} produtos dinâmicos válidos; mantendo catálogo anterior para evitar reduzir a loja.`);
   } else {
-    output = fixedAsFallback(fixed).map((p) => ({ ...p, source: 'fixed-fallback' }));
+    output = enrichedFixedFallback(enrichedFixed);
     source = 'fixed-fallback';
     console.warn('⚠️ Primeira execução sem retorno suficiente da API; publicando catálogo inicial fixo.');
   }
