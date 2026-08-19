@@ -67,9 +67,47 @@ async function graphql(query) {
   try { json = JSON.parse(raw); }
   catch { throw new Error(`Resposta não-JSON da Shopee (${response.status})`); }
 
-  if (!response.ok) throw new Error(`Shopee HTTP ${response.status}: ${raw.slice(0, 500)}`);
-  if (json.errors?.length) throw new Error(`Shopee GraphQL: ${json.errors[0].message || 'erro desconhecido'}`);
+  if (!response.ok) {
+    const err = new Error(`Shopee HTTP ${response.status}: ${raw.slice(0, 500)}`);
+    err.httpStatus = response.status;
+    throw err;
+  }
+  if (json.errors?.length) {
+    const first = json.errors[0];
+    const code = first.extensions?.code;
+    const err = new Error(`Shopee GraphQL${code ? ` [${code}]` : ''}: ${first.message || 'erro desconhecido'}`);
+    err.code = code;
+    throw err;
+  }
   return json.data;
+}
+
+// Códigos documentados pela Shopee (ver docs da Affiliate Open API).
+const SHOPEE_ERROR_HINTS = {
+  10000: 'Erro interno da Shopee. Costuma se resolver sozinho na próxima execução.',
+  10010: 'Erro de sintaxe na query GraphQL enviada pelo bot.',
+  10020: 'Assinatura inválida — confira SHOPEE_APP_ID e SHOPEE_APP_SECRET nos Secrets do GitHub (podem estar errados, trocados ou com espaço extra).',
+  10030: 'Limite de requisições da Shopee atingido (rate limit).',
+  10035: 'Sua conta/app não tem acesso liberado à API — solicite/confirme o acesso no painel de afiliado da Shopee.',
+  11001: 'Parâmetros inválidos na consulta.'
+};
+
+function explainShopeeError(error) {
+  const code = error?.code;
+  if (code && SHOPEE_ERROR_HINTS[code]) return `[${code}] ${SHOPEE_ERROR_HINTS[code]}`;
+  return error?.message || 'erro desconhecido';
+}
+
+// Faz uma chamada mínima só para validar credenciais/acesso antes de gastar
+// tempo com todas as keywords. Isso deixa claro no sync-meta.json se o problema
+// é de credencial (o que trava QUALQUER atualização, sempre).
+async function checkApiAccess() {
+  try {
+    await graphql(buildSearchQuery({ keyword: 'shopee', sortType: 2, page: 1, limit: 1 }));
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, message: explainShopeeError(error), code: error?.code };
+  }
 }
 
 function productFields() {
@@ -149,7 +187,7 @@ async function withRateLimitRetry(fn, { retries = 3, baseDelayMs = 700 } = {}) {
       return await fn();
     } catch (error) {
       lastError = error;
-      const isRateLimit = /10030|rate limit/i.test(error.message || '');
+      const isRateLimit = error?.code === 10030 || /10030|rate limit/i.test(error.message || '');
       if (!isRateLimit || attempt === retries) throw error;
       const wait = baseDelayMs * (attempt + 1);
       console.warn(`  ⏳ rate limit da Shopee, aguardando ${wait}ms antes de tentar de novo…`);
@@ -329,7 +367,7 @@ async function topPerforming(config) {
 // o limite de requisições (erro 10030) quando o bot passa por várias keywords.
 const API_CALL_DELAY_MS = 350;
 
-async function collectDynamicProducts(config) {
+async function collectDynamicProducts(config, diagnostics) {
   const map = new Map();
   const keywords = Array.isArray(config.keywords) ? config.keywords : [];
 
@@ -337,12 +375,16 @@ async function collectDynamicProducts(config) {
     try {
       const nodes = await searchKeyword(keyword, config);
       console.log(`  ✓ ${keyword}: ${nodes.length} produtos encontrados`);
+      diagnostics.keywordCounts[keyword] = nodes.length;
       for (const node of nodes) {
         const id = String(node.itemId || '');
         if (id) map.set(id, node);
       }
     } catch (error) {
-      console.warn(`  ⚠ ${keyword}: ${error.message}`);
+      const hint = explainShopeeError(error);
+      console.warn(`  ⚠ ${keyword}: ${hint}`);
+      diagnostics.keywordCounts[keyword] = 0;
+      diagnostics.errors.push(`keyword "${keyword}": ${hint}`);
     }
     await sleep(API_CALL_DELAY_MS);
   }
@@ -351,49 +393,87 @@ async function collectDynamicProducts(config) {
     try {
       const nodes = await topPerforming(config);
       console.log(`  ✓ top-performing: ${nodes.length} produtos encontrados`);
+      diagnostics.topPerformingCount = nodes.length;
       for (const node of nodes) {
         const id = String(node.itemId || '');
         if (id) map.set(id, node);
       }
     } catch (error) {
-      console.warn(`  ⚠ top-performing: ${error.message}`);
+      const hint = explainShopeeError(error);
+      console.warn(`  ⚠ top-performing: ${hint}`);
+      diagnostics.errors.push(`top-performing: ${hint}`);
     }
   }
 
   return [...map.values()];
 }
 
-async function buildDynamicCatalog(nodes, config) {
+async function buildDynamicCatalog(nodes, config, diagnostics) {
   const target = Math.max(1, config.maxProducts || 30);
-  // Pega uma folga acima do alvo (produtos + link não gerado ou sem imagem acabam
-  // descartados na etapa seguinte), assim quase sempre fecha os 30 pedidos.
-  const ranked = nodes
-    .filter((p) => p && p.itemId && p.productLink && p.imageUrl)
+  const beforeFilter = nodes.length;
+  const filtered = nodes.filter((p) => p && p.itemId && p.productLink && p.imageUrl);
+  diagnostics.candidatesRaw = beforeFilter;
+  diagnostics.candidatesAfterFilter = filtered.length;
+  diagnostics.candidatesDroppedMissingFields = beforeFilter - filtered.length;
+
+  // Pega uma folga acima do alvo (alguns produtos podem falhar ao gerar o link
+  // de afiliado), assim quase sempre fecha os 30 pedidos.
+  const ranked = filtered
     .map((p) => ({ p, score: scoreProduct(p) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, target * 3);
 
   const results = [];
+  let linkFailures = 0;
   for (const { p } of ranked) {
     if (results.length >= target) break;
     const affiliateLink = await generateAffiliateLink(p, config);
-    if (!affiliateLink) continue;
+    if (!affiliateLink) { linkFailures++; continue; }
     results.push(normalizeProduct(p, affiliateLink));
   }
+  diagnostics.affiliateLinkFailures = linkFailures;
   return results;
 }
 
-function writeSyncMeta({ startedAt, completedAt, productsCount, source }) {
+// Junta os produtos dinâmicos novos (sempre prioridade, pois são os mais frescos)
+// com o catálogo anterior, preenchendo o restante até o alvo. Assim, mesmo que a
+// API só devolva 5 produtos válidos na rodada, esses 5 já entram no ar — o site
+// nunca fica "travado" esperando um número mínimo perfeito de itens.
+function mergeWithPrevious(dynamic, previous, target) {
+  const seen = new Set();
+  const merged = [];
+
+  for (const p of dynamic) {
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
+    merged.push({ ...p, source: 'api-dynamic' });
+    if (merged.length >= target) return merged;
+  }
+
+  if (Array.isArray(previous)) {
+    for (const p of previous) {
+      if (!p || !p.id || seen.has(p.id)) continue;
+      seen.add(p.id);
+      merged.push(p);
+      if (merged.length >= target) break;
+    }
+  }
+
+  return merged;
+}
+
+function writeSyncMeta({ startedAt, completedAt, productsCount, source, diagnostics }) {
   const intervalMinutes = 30;
   const nextUpdateAt = new Date(Date.parse(completedAt) + intervalMinutes * 60 * 1000).toISOString();
   writeJson(META_FILE, {
-    status: 'success',
+    status: diagnostics.apiOk === false ? 'degraded' : 'success',
     source,
     intervalMinutes,
     startedAt,
     completedAt,
     nextUpdateAt,
-    productsCount
+    productsCount,
+    diagnostics
   });
 }
 
@@ -420,28 +500,67 @@ async function main() {
   console.log(`🔄 Depois, catálogo dinâmico: até ${config.maxProducts || 30} produtos`);
   console.log(`⏱️ Atualização programada: a cada ${config.refreshIntervalMinutes || 30} minutos`);
 
-  let dynamic = [];
-  try {
-    const candidates = await collectDynamicProducts(config);
-    console.log(`\n📊 ${candidates.length} candidatos únicos após coleta.`);
-    dynamic = await buildDynamicCatalog(candidates, config);
-    console.log(`✅ ${dynamic.length} produtos dinâmicos com link de afiliado e imagem.`);
-  } catch (error) {
-    console.warn(`⚠️ Falha total na coleta dinâmica: ${error.message}`);
+  const diagnostics = {
+    apiOk: true,
+    keywordCounts: {},
+    topPerformingCount: 0,
+    candidatesRaw: 0,
+    candidatesAfterFilter: 0,
+    candidatesDroppedMissingFields: 0,
+    affiliateLinkFailures: 0,
+    errors: []
+  };
+
+  console.log('\n🔎 Testando acesso à API antes de coletar…');
+  const access = await checkApiAccess();
+  if (!access.ok) {
+    diagnostics.apiOk = false;
+    diagnostics.errors.unshift(`checagem inicial: ${access.message}`);
+    console.error(`❌ A Shopee recusou a chamada de teste: ${access.message}`);
+    console.error('   Nenhum produto novo pode ser coletado enquanto isso não for resolvido.');
+  } else {
+    console.log('✅ Credenciais e acesso à API confirmados.');
   }
 
-  const hasEnoughDynamic = dynamic.length >= Math.max(1, config.minDynamicProducts || 24);
+  let dynamic = [];
+  if (access.ok) {
+    try {
+      const candidates = await collectDynamicProducts(config, diagnostics);
+      console.log(`\n📊 ${candidates.length} candidatos únicos após coleta.`);
+      dynamic = await buildDynamicCatalog(candidates, config, diagnostics);
+      console.log(`✅ ${dynamic.length} produtos dinâmicos com link de afiliado e imagem.`);
+    } catch (error) {
+      const hint = explainShopeeError(error);
+      console.warn(`⚠️ Falha total na coleta dinâmica: ${hint}`);
+      diagnostics.errors.push(`coleta: ${hint}`);
+    }
+  }
+
+  const target = Math.max(1, config.maxProducts || 30);
+  const minDynamic = Math.max(1, config.minDynamicProducts || 24);
   const previousIsDynamic = Array.isArray(previous) && previous.some((p) => p?.source === 'api-dynamic');
 
   let output;
   let source;
-  if (hasEnoughDynamic) {
+  if (dynamic.length >= target) {
+    // Coleta cheia: publica só os novos, ranqueados.
     output = dynamic.map((p) => ({ ...p, source: 'api-dynamic' }));
     source = 'api-dynamic';
+  } else if (dynamic.length > 0 && Array.isArray(previous) && previous.length > 0) {
+    // Coleta parcial: publica os novos + completa com o catálogo anterior,
+    // em vez de descartar tudo. O site sempre reflete o que a API conseguiu trazer.
+    output = mergeWithPrevious(dynamic, previous, target);
+    source = dynamic.length >= minDynamic ? 'api-dynamic' : 'api-dynamic-partial';
+    console.warn(`⚠️ Só ${dynamic.length}/${target} produtos dinâmicos válidos; completando com o catálogo anterior.`);
+  } else if (dynamic.length > 0) {
+    // Coleta parcial na primeira execução (sem catálogo anterior para completar).
+    output = dynamic.map((p) => ({ ...p, source: 'api-dynamic' }));
+    source = 'api-dynamic-partial';
   } else if (Array.isArray(previous) && previous.length > 0) {
+    // Falha total: mantém o catálogo anterior (nunca fica vazio).
     output = previous;
     source = previousIsDynamic ? 'previous-dynamic' : 'previous-fallback';
-    console.warn(`⚠️ Só ${dynamic.length} produtos dinâmicos válidos; mantendo catálogo anterior.`);
+    console.warn('⚠️ Nenhum produto dinâmico válido nesta rodada; mantendo catálogo anterior.');
   } else {
     output = fixedAsFallback(fixed).map((p) => ({ ...p, source: 'fixed-fallback' }));
     source = 'fixed-fallback';
@@ -452,11 +571,16 @@ async function main() {
   writeJson(OUTPUT_FILE, output);
   writeJson(LINKS_FILE, affiliateLinks);
   const completedAt = new Date().toISOString();
-  writeSyncMeta({ startedAt, completedAt, productsCount: output.length, source });
+  diagnostics.dynamicPublished = dynamic.length;
+  writeSyncMeta({ startedAt, completedAt, productsCount: output.length, source, diagnostics });
 
   console.log(`\n✅ products.json: ${output.length} produtos`);
   console.log(`🔗 links.json: ${affiliateLinks.length} links de afiliado`);
   console.log(`📦 fonte publicada: ${source}`);
+  if (diagnostics.errors.length) {
+    console.log(`⚠️ erros registrados nesta rodada (ver sync-meta.json → diagnostics.errors):`);
+    diagnostics.errors.forEach((e) => console.log(`   - ${e}`));
+  }
   console.log(`⏱️ próxima atualização: 30 minutos após esta conclusão.`);
 }
 
