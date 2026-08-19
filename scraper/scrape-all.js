@@ -249,32 +249,72 @@ function commissionPct(value) {
   return n > 1 ? n : n * 100;
 }
 
+// Categorias de maior consumo Shopee Brasil (relatório 2026 -> projeção 2027).
+// Ordem importa: padrões mais específicos primeiro para evitar falso-positivo
+// (ex.: "capa de chuva" não pode cair em Moda por causa de "capa").
 function inferTag(name) {
   const n = String(name || '').toLowerCase();
-  if (/fone|bluetooth|watch|relógio|relogio|nfc|smart|eletr/i.test(n)) return 'Eletrônicos';
-  if (/chinel|tênis|tenis|calça|bermuda|roupa|moda/i.test(n)) return 'Moda';
-  if (/manta|lençol|lencol|cozinha|garrafa|trava|óculos|oculos|organizador|casa/i.test(n)) return 'Casa';
-  if (/barbeador|beleza|maquiagem|cabelo/i.test(n)) return 'Beleza';
-  if (/whey|creatina|bcaa|fitness|academia/i.test(n)) return 'Fitness';
-  if (/capacete|carro|ferramenta/i.test(n)) return 'Acessórios';
-  if (/areia|gato|cachorro|pet/i.test(n)) return 'Pets';
+
+  // Pets — antes de Casa/Auto para não confundir "cama pet" com Casa, etc.
+  // "ra[cç][aã]o" isolado bate como substring dentro de "duração"/"decoração";
+  // por isso exige contexto (ração de/para cão, gato, cachorro, pet).
+  if (/areia (sanit[aá]ria|para gato)|comedouro|fonte de [aá]gua.*pet|antipulga|coleira pet|petisco|\bpet\b|para c[aã]es|para gato|ra[cç][aã]o (de |para )?(c[aã]o|gato|cachorro|pet)/i.test(n)) return 'Pets';
+
+  // Auto & Moto
+  if (/retrovisor|escapamento|moto\b|pneu|friso de roda|capa (para )?volante|automotiv|farol|para-choque|carburador/i.test(n)) return 'Auto & Moto';
+
+  // Smartphones (mantido separado de Eletrônicos por ser categoria de ticket maior)
+  if (/smartphone|celular|iphone|xiaomi|samsung|motorola|redmi|galaxy|android\b/i.test(n)) return 'Smartphones';
+
+  // Cozinha
+  if (/air ?fryer|panela|liquidificador|processador de alimentos|fatiador|descascador|forma de silicone|torneira|espremedor|utens[ií]lio.*cozinha|balan[cç]a.*cozinha/i.test(n)) return 'Cozinha';
+
+  // Beleza
+  if (/lip ?tint|batom|base l[ií]quida|blush|pincel|maquiagem|secadora|chapinha|s[eé]rum|skincare|corretivo|barbeador|beleza|cabelo|massageador facial|pistola de massagem/i.test(n)) return 'Beleza';
+
+  // Casa, Decoração e Organização (categoria nº1 em GMV)
+  if (/papel de parede|luminaria|lumin[áa]ria|sapateira|tapete|caixa organizadora|espelho|cortina|len[cç]ol|organizador|garrafa t[eé]rmica|penteadeira|umidificador|ventilador|capa de chuva|\bmop\b|pote herm[eé]tico|almofada|\bcasa\b/i.test(n)) return 'Casa';
+
+  // Fitness / Bem-estar
+  if (/whey|creatina|bcaa|fitness|academia|bicicleta erg|faixa el[aá]stica|pr[eé] ?treino|difusor|[oó]leo essencial|bioimped[aâ]ncia/i.test(n)) return 'Fitness';
+
+  // Brinquedos e bebês
+  if (/brinquedo|montessori|reborn|papelaria|caderno/i.test(n)) return 'Brinquedos';
+
+  // Eletrônicos e acessórios de tecnologia
+  if (/fone|bluetooth|tws|watch|rel[oó]gio|nfc|smart|eletr[oô]nico|power ?bank|carregador|cabo usb|ring ?light|projetor|impressora|notebook|mouse|teclado|hub usb|drone|r[aá]dio comunicador|c[aâ]mera de seguran[cç]a/i.test(n)) return 'Eletrônicos';
+
+  // Moda
+  if (/chinel|t[eê]nis|cal[cç]a|bermuda|\broupa\b|\bmoda\b|vestido|cropped|blazer|coturno|moc[aa]ssim|lingerie|conjunto fitness|moletom|blusa|camiseta|jaqueta|bolsa|bijuteria|[oó]culos de sol|sand[aá]lia/i.test(n)) return 'Moda';
+
+  // Ferramentas e utilidades gerais
+  if (/capacete|ferramenta|aspirador|limpeza/i.test(n)) return 'Acessórios';
+
   if (/devocional|livro/i.test(n)) return 'Livros';
   return 'Achado';
 }
 
-function scoreProduct(p) {
+function scoreProduct(p, config) {
   const price = toNumber(p.priceMin);
   const sales = toNumber(p.sales);
   const rating = ratingNumber(p.ratingStar);
   const discount = toNumber(p.priceDiscountRate);
   const commission = commissionPct(p.commissionRate);
 
-  const priceScore = price > 0 ? Math.max(0, 30 - Math.min(price, 300) / 10) : 0;
-  const salesScore = Math.min(30, Math.log10(Math.max(1, sales)) * 6);
-  const ratingScore = Math.min(20, rating * 4);
-  const discountScore = Math.min(10, discount / 2);
-  const commissionScore = Math.min(10, commission / 2);
-  return priceScore + salesScore + ratingScore + discountScore + commissionScore;
+  // Escala logarítmica: recompensa preço baixo sem zerar itens de ticket maior
+  // (ex.: smartphones), que continuam competitivos se tiverem boa nota/venda.
+  const priceScore = price > 0 ? Math.max(0, 26 - Math.log10(price) * 9) : 10;
+  const salesScore = Math.min(28, Math.log10(Math.max(1, sales)) * 6);
+  const ratingScore = Math.min(24, rating * 4.8); // nota pesa mais: "produto de qualidade"
+  const discountScore = Math.min(12, discount / 2);
+  const commissionScore = Math.min(6, commission / 3);
+
+  // Reforço para categorias de maior crescimento projetado até 2027
+  // (bot-config.json > trendingCategoryBoost), sem excluir as demais.
+  const boostMap = config?.trendingCategoryBoost || {};
+  const categoryBoost = toNumber(boostMap[inferTag(p.productName)], 0);
+
+  return priceScore + salesScore + ratingScore + discountScore + commissionScore + categoryBoost;
 }
 
 function normalizeProduct(product, affiliateLink) {
@@ -420,30 +460,60 @@ async function collectDynamicProducts(config, diagnostics, runCount) {
   return [...map.values()];
 }
 
-async function buildDynamicCatalog(nodes, config, diagnostics) {
+// Nota mínima quando a Shopee informa avaliação — "produto de qualidade" pedido
+// pelo usuário. Itens sem avaliação (rating 0/ausente) não são descartados só
+// por isso, mas perdem pontos no ranqueamento (ver scoreProduct).
+const MIN_RATING = 4.0;
+
+function passesQualityBar(p, config) {
+  const rating = ratingNumber(p.ratingStar);
+  const minRating = config.minRating ?? MIN_RATING;
+  if (rating > 0 && rating < minRating) return false;
+  return true;
+}
+
+async function buildDynamicCatalog(nodes, config, diagnostics, previousIds) {
   const target = Math.max(1, config.maxProducts || 50);
   const beforeFilter = nodes.length;
   const filtered = nodes.filter((p) => p && p.itemId && p.productLink && p.imageUrl);
+  const qualityFiltered = filtered.filter((p) => passesQualityBar(p, config));
   diagnostics.candidatesRaw = beforeFilter;
   diagnostics.candidatesAfterFilter = filtered.length;
   diagnostics.candidatesDroppedMissingFields = beforeFilter - filtered.length;
+  diagnostics.candidatesDroppedLowRating = filtered.length - qualityFiltered.length;
 
-  // Pega uma folga acima do alvo (alguns produtos podem falhar ao gerar o link
-  // de afiliado), assim quase sempre fecha os 30 pedidos.
-  const ranked = filtered
-    .map((p) => ({ p, score: scoreProduct(p) }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, target * 3);
+  const ranked = qualityFiltered
+    .map((p) => ({ p, score: scoreProduct(p, config), isFresh: !previousIds.has(String(p.itemId)) }))
+    .sort((a, b) => b.score - a.score);
+
+  // Prioridade #1: produtos que NÃO estavam no catálogo do ciclo anterior — é
+  // isso que garante que o site sempre mostre coisa nova, sem repetição.
+  // Só usamos itens repetidos se realmente faltar variedade fresca suficiente.
+  const fresh = ranked.filter((r) => r.isFresh).slice(0, target * 3);
+  const repeatable = ranked.filter((r) => !r.isFresh).slice(0, target * 2);
+  diagnostics.freshCandidates = fresh.length;
+  diagnostics.repeatableCandidates = repeatable.length;
 
   const results = [];
+  const usedIds = new Set();
   let linkFailures = 0;
-  for (const { p } of ranked) {
+
+  for (const pool of [fresh, repeatable]) {
+    for (const { p } of pool) {
+      if (results.length >= target) break;
+      const id = String(p.itemId);
+      if (usedIds.has(id)) continue;
+      const affiliateLink = await generateAffiliateLink(p, config);
+      if (!affiliateLink) { linkFailures++; continue; }
+      usedIds.add(id);
+      results.push(normalizeProduct(p, affiliateLink));
+    }
     if (results.length >= target) break;
-    const affiliateLink = await generateAffiliateLink(p, config);
-    if (!affiliateLink) { linkFailures++; continue; }
-    results.push(normalizeProduct(p, affiliateLink));
   }
+
   diagnostics.affiliateLinkFailures = linkFailures;
+  diagnostics.freshPublished = results.filter((r) => !previousIds.has(r.id)).length;
+  diagnostics.repeatPublished = results.length - diagnostics.freshPublished;
   return results;
 }
 
@@ -495,13 +565,15 @@ async function main() {
     refreshIntervalMinutes: 30,
     maxProducts: 50,
     minDynamicProducts: 40,
-    pagesPerKeyword: 2,
+    pagesPerKeyword: 1,
     limitPerQuery: 50,
     topPerformingLimit: 100,
     includeTopPerforming: true,
     rotateSortType: true,
+    minRating: 4.0,
     keywords: [],
-    subIds: ['achadosshopeebsf']
+    subIds: ['achadosshopeebsf'],
+    trendingCategoryBoost: {}
   });
   const fixed = readJson(FIXED_FILE, []);
   const previous = readJson(OUTPUT_FILE, []);
@@ -524,9 +596,18 @@ async function main() {
     candidatesRaw: 0,
     candidatesAfterFilter: 0,
     candidatesDroppedMissingFields: 0,
+    candidatesDroppedLowRating: 0,
+    freshCandidates: 0,
+    repeatableCandidates: 0,
+    freshPublished: 0,
+    repeatPublished: 0,
     affiliateLinkFailures: 0,
     errors: []
   };
+
+  const previousIds = new Set(
+    (Array.isArray(previous) ? previous : []).map((p) => String(p?.id || '')).filter(Boolean)
+  );
 
   console.log('\n🔎 Testando acesso à API antes de coletar…');
   const access = await checkApiAccess();
@@ -544,8 +625,8 @@ async function main() {
     try {
       const candidates = await collectDynamicProducts(config, diagnostics, runCount);
       console.log(`\n📊 ${candidates.length} candidatos únicos após coleta.`);
-      dynamic = await buildDynamicCatalog(candidates, config, diagnostics);
-      console.log(`✅ ${dynamic.length} produtos dinâmicos com link de afiliado e imagem.`);
+      dynamic = await buildDynamicCatalog(candidates, config, diagnostics, previousIds);
+      console.log(`✅ ${dynamic.length} produtos dinâmicos (${diagnostics.freshPublished} novos, ${diagnostics.repeatPublished} repetidos do ciclo anterior por falta de opção fresca).`);
     } catch (error) {
       const hint = explainShopeeError(error);
       console.warn(`⚠️ Falha total na coleta dinâmica: ${hint}`);
