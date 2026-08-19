@@ -1,13 +1,18 @@
 name: Atualizar achadinhos Shopee
 
 on:
+  # IMPORTANTE: "products.json", "links.json" e "product-history.json" NÃO
+  # entram nesta lista de propósito. Esses arquivos são gerados e commitados
+  # pelo PRÓPRIO bot ao final de cada execução — se estivessem aqui, cada
+  # commit do bot disparava uma NOVA execução (loop de auto-disparo), fora do
+  # intervalo de 30 minutos, competindo com o ciclo seguinte via concurrency
+  # (um cancelava o outro no meio) e gerando os "travamentos" e a repetição
+  # de produtos. Só arquivos editados por HUMANOS devem disparar o workflow.
   push:
     paths:
       - "fixed-products.json"
       - "bot-config.json"
       - "scraper/**"
-      - "products.json"
-      - "links.json"
       - ".github/workflows/update-products.yml"
   schedule:
     - cron: "0,30 * * * *"
@@ -47,7 +52,7 @@ jobs:
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add products.json links.json sync-meta.json
+          git add products.json links.json sync-meta.json product-history.json
 
           if git diff --staged --quiet; then
             echo "Nenhuma alteração para publicar."
