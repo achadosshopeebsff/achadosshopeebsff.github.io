@@ -22,6 +22,10 @@ const CONFIG_FILE = path.join(ROOT, 'bot-config.json');
 const OUTPUT_FILE = path.join(ROOT, 'products.json');
 const LINKS_FILE = path.join(ROOT, 'links.json');
 const META_FILE = path.join(ROOT, 'sync-meta.json');
+// Memória persistente entre execuções (commitada pelo workflow) de QUANDO cada
+// produto foi publicado por último. É isso que garante "sempre produtos novos"
+// de verdade, em vez de só comparar com o ciclo imediatamente anterior.
+const HISTORY_FILE = path.join(ROOT, 'product-history.json');
 const ENDPOINT = 'https://open-api.affiliate.shopee.com.br/graphql';
 
 const APP_ID = process.env.SHOPEE_APP_ID;
@@ -150,11 +154,17 @@ function buildSearchQuery({ keyword, sortType = 1, page = 1, limit = 50, listTyp
   }`;
 }
 
-function buildTopQuery({ page = 1, limit = 50 }) {
+function buildTopQuery({ page = 1, limit = 50, includeSortType = true }) {
+  // listType 2 = "top performing" da Shopee. Em algumas contas/momentos a API
+  // rejeita esse listType combinado com sortType (erro [11001] Parâmetros
+  // inválidos) — por isso topPerforming() tenta primeiro com sortType e,
+  // se a Shopee recusar especificamente por parâmetro inválido, tenta de
+  // novo sem sortType antes de desistir.
+  const sortPart = includeSortType ? 'sortType: 2,' : '';
   return `query {
     productOfferV2(
       listType: 2,
-      sortType: 2,
+      ${sortPart}
       page: ${page},
       limit: ${limit}
     ) {
@@ -178,8 +188,14 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Roda `fn` com pequenos atrasos e nova tentativa em caso de rate limit (erro 10030
-// da Shopee), para não perder produtos só porque o bot fez muitas chamadas seguidas.
+// Roda `fn` com pequenos atrasos e nova tentativa em caso de erro transitório
+// da Shopee: 10030 (rate limit) e 10000 (erro interno — a própria Shopee
+// documenta que "costuma se resolver sozinho", e a forma de resolver sozinho
+// É tentar de novo). Sem isso, uma leva de erros 10000 em sequência (comum
+// quando muitas keywords são consultadas seguidas) perdia dezenas de
+// palavras-chave inteiras por rodada, mesmo sendo um problema passageiro.
+const TRANSIENT_ERROR_CODES = new Set([10030, 10000]);
+
 async function withRateLimitRetry(fn, { retries = 3, baseDelayMs = 700 } = {}) {
   let lastError;
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -187,10 +203,10 @@ async function withRateLimitRetry(fn, { retries = 3, baseDelayMs = 700 } = {}) {
       return await fn();
     } catch (error) {
       lastError = error;
-      const isRateLimit = error?.code === 10030 || /10030|rate limit/i.test(error.message || '');
-      if (!isRateLimit || attempt === retries) throw error;
+      const isTransient = TRANSIENT_ERROR_CODES.has(error?.code) || /10030|10000|rate limit/i.test(error.message || '');
+      if (!isTransient || attempt === retries) throw error;
       const wait = baseDelayMs * (attempt + 1);
-      console.warn(`  ⏳ rate limit da Shopee, aguardando ${wait}ms antes de tentar de novo…`);
+      console.warn(`  ⏳ erro transitório da Shopee${error?.code ? ` (${error.code})` : ''}, aguardando ${wait}ms antes de tentar de novo…`);
       await sleep(wait);
     }
   }
@@ -393,14 +409,31 @@ function pickSortType(config, runCount) {
   return SORT_TYPE_ROTATION[runCount % SORT_TYPE_ROTATION.length];
 }
 
+// Além de girar o sortType a cada execução, também giramos a PÁGINA inicial
+// de cada keyword (1, 2, 3, 1, 2, 3…). Sem isso, com pagesPerKeyword=1 o bot
+// sempre pedia a página 1 — que a Shopee devolve praticamente idêntica de
+// execução em execução para o mesmo sortType, sendo a maior causa de produto
+// repetido. Girando sortType (4 valores) x página (3 valores) = 12 execuções
+// (~6h) de combinações diferentes por keyword antes de repetir a mesma busca.
+function pickPageStart(config, runCount) {
+  const span = Math.max(1, config.pageRotationSpan || 3);
+  return 1 + (runCount % span);
+}
+
 async function searchKeyword(keyword, config, runCount) {
   const results = [];
-  const pages = Math.max(1, Math.min(config.pagesPerKeyword || 2, 5));
+  const pages = Math.max(1, Math.min(config.pagesPerKeyword || 1, 5));
   const limit = Math.max(1, Math.min(config.limitPerQuery || 50, 500));
   const sortType = pickSortType(config, runCount);
-  for (let page = 1; page <= pages; page++) {
-    const data = await withRateLimitRetry(() =>
-      graphql(buildSearchQuery({ keyword, sortType, page, limit }))
+  const pageStart = pickPageStart(config, runCount);
+  for (let i = 0; i < pages; i++) {
+    const page = pageStart + i;
+    // retries menor aqui (é chamado 130+ vezes por rodada): o objetivo é
+    // absorver picos passageiros de erro 10000/10030 sem estourar o tempo
+    // total de execução do workflow.
+    const data = await withRateLimitRetry(
+      () => graphql(buildSearchQuery({ keyword, sortType, page, limit })),
+      { retries: 2, baseDelayMs: 900 }
     );
     const connection = data?.productOfferV2;
     results.push(...(connection?.nodes || []));
@@ -410,9 +443,18 @@ async function searchKeyword(keyword, config, runCount) {
 }
 
 async function topPerforming(config) {
-  const limit = Math.max(1, Math.min(config.topPerformingLimit || 50, 500));
-  const data = await withRateLimitRetry(() => graphql(buildTopQuery({ page: 1, limit })));
-  return data?.productOfferV2?.nodes || [];
+  const limit = Math.max(1, Math.min(config.topPerformingLimit || 50, 100));
+  try {
+    const data = await withRateLimitRetry(() => graphql(buildTopQuery({ page: 1, limit, includeSortType: true })));
+    return data?.productOfferV2?.nodes || [];
+  } catch (error) {
+    if (error?.code === 11001) {
+      console.warn('  ↻ top-performing: Shopee recusou com sortType, tentando de novo sem sortType…');
+      const data = await withRateLimitRetry(() => graphql(buildTopQuery({ page: 1, limit, includeSortType: false })));
+      return data?.productOfferV2?.nodes || [];
+    }
+    throw error;
+  }
 }
 
 // Atraso pequeno entre chamadas sequenciais à API da Shopee, só para não estourar
@@ -472,8 +514,20 @@ function passesQualityBar(p, config) {
   return true;
 }
 
-async function buildDynamicCatalog(nodes, config, diagnostics, previousIds) {
+// Um produto só conta como "esgotado" (fora do pool fresco) se foi publicado
+// há menos de `cooldownRuns` execuções. Diferente de comparar só com o ciclo
+// anterior, isso olha o HISTÓRICO real (product-history.json, persistido
+// entre execuções), então um produto publicado no ciclo 1 não pode voltar
+// "como se fosse novo" no ciclo 3 só porque sumiu do ciclo 2.
+function isFreshEnough(itemId, history, runCount, cooldownRuns) {
+  const entry = history[String(itemId)];
+  if (!entry || !Number.isFinite(entry.lastRun)) return true;
+  return runCount - entry.lastRun >= cooldownRuns;
+}
+
+async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount) {
   const target = Math.max(1, config.maxProducts || 50);
+  const cooldownRuns = Math.max(0, config.repeatCooldownRuns ?? 4);
   const beforeFilter = nodes.length;
   const filtered = nodes.filter((p) => p && p.itemId && p.productLink && p.imageUrl);
   const qualityFiltered = filtered.filter((p) => passesQualityBar(p, config));
@@ -483,16 +537,21 @@ async function buildDynamicCatalog(nodes, config, diagnostics, previousIds) {
   diagnostics.candidatesDroppedLowRating = filtered.length - qualityFiltered.length;
 
   const ranked = qualityFiltered
-    .map((p) => ({ p, score: scoreProduct(p, config), isFresh: !previousIds.has(String(p.itemId)) }))
+    .map((p) => ({
+      p,
+      score: scoreProduct(p, config),
+      isFresh: isFreshEnough(p.itemId, history, runCount, cooldownRuns)
+    }))
     .sort((a, b) => b.score - a.score);
 
-  // Prioridade #1: produtos que NÃO estavam no catálogo do ciclo anterior — é
-  // isso que garante que o site sempre mostre coisa nova, sem repetição.
-  // Só usamos itens repetidos se realmente faltar variedade fresca suficiente.
+  // Prioridade #1: produtos fora do período de "descanso" (cooldown) no
+  // histórico — é isso que garante produtos sempre novos de verdade.
+  // Só usamos itens em cooldown se realmente faltar variedade fresca suficiente.
   const fresh = ranked.filter((r) => r.isFresh).slice(0, target * 3);
   const repeatable = ranked.filter((r) => !r.isFresh).slice(0, target * 2);
   diagnostics.freshCandidates = fresh.length;
   diagnostics.repeatableCandidates = repeatable.length;
+  diagnostics.cooldownRuns = cooldownRuns;
 
   const results = [];
   const usedIds = new Set();
@@ -512,9 +571,22 @@ async function buildDynamicCatalog(nodes, config, diagnostics, previousIds) {
   }
 
   diagnostics.affiliateLinkFailures = linkFailures;
-  diagnostics.freshPublished = results.filter((r) => !previousIds.has(r.id)).length;
+  diagnostics.freshPublished = results.filter((r) => isFreshEnough(r.itemId, history, runCount, cooldownRuns)).length;
   diagnostics.repeatPublished = results.length - diagnostics.freshPublished;
   return results;
+}
+
+// Remove do histórico entradas muito antigas (fora até de uma janela generosa
+// de cooldown) e limita o tamanho do arquivo, para product-history.json não
+// crescer sem controle ao longo de semanas/meses de execução automática.
+function pruneHistory(history, runCount, cooldownRuns) {
+  const keepWindowRuns = Math.max(cooldownRuns * 6, 24);
+  const maxEntries = 20000;
+  const entries = Object.entries(history).filter(
+    ([, v]) => Number.isFinite(v?.lastRun) && runCount - v.lastRun <= keepWindowRuns
+  );
+  entries.sort((a, b) => b[1].lastRun - a[1].lastRun);
+  return Object.fromEntries(entries.slice(0, maxEntries));
 }
 
 // Junta os produtos dinâmicos novos (sempre prioridade, pois são os mais frescos)
@@ -563,13 +635,15 @@ function writeSyncMeta({ startedAt, completedAt, productsCount, source, diagnost
 async function main() {
   const config = readJson(CONFIG_FILE, {
     refreshIntervalMinutes: 30,
-    maxProducts: 50,
-    minDynamicProducts: 40,
+    maxProducts: 90,
+    minDynamicProducts: 60,
     pagesPerKeyword: 1,
     limitPerQuery: 50,
-    topPerformingLimit: 100,
+    topPerformingLimit: 50,
     includeTopPerforming: true,
     rotateSortType: true,
+    pageRotationSpan: 3,
+    repeatCooldownRuns: 4,
     minRating: 4.0,
     keywords: [],
     subIds: ['achadosshopeebsf'],
@@ -578,6 +652,7 @@ async function main() {
   const fixed = readJson(FIXED_FILE, []);
   const previous = readJson(OUTPUT_FILE, []);
   const previousMeta = readJson(META_FILE, {});
+  const history = readJson(HISTORY_FILE, {});
   const runCount = Number.isFinite(previousMeta?.runCount) ? previousMeta.runCount + 1 : 0;
   const startedAt = new Date().toISOString();
 
@@ -605,10 +680,6 @@ async function main() {
     errors: []
   };
 
-  const previousIds = new Set(
-    (Array.isArray(previous) ? previous : []).map((p) => String(p?.id || '')).filter(Boolean)
-  );
-
   console.log('\n🔎 Testando acesso à API antes de coletar…');
   const access = await checkApiAccess();
   if (!access.ok) {
@@ -625,8 +696,8 @@ async function main() {
     try {
       const candidates = await collectDynamicProducts(config, diagnostics, runCount);
       console.log(`\n📊 ${candidates.length} candidatos únicos após coleta.`);
-      dynamic = await buildDynamicCatalog(candidates, config, diagnostics, previousIds);
-      console.log(`✅ ${dynamic.length} produtos dinâmicos (${diagnostics.freshPublished} novos, ${diagnostics.repeatPublished} repetidos do ciclo anterior por falta de opção fresca).`);
+      dynamic = await buildDynamicCatalog(candidates, config, diagnostics, history, runCount);
+      console.log(`✅ ${dynamic.length} produtos dinâmicos (${diagnostics.freshPublished} fora do cooldown de repetição, ${diagnostics.repeatPublished} repetidos por falta de opção fresca).`);
     } catch (error) {
       const hint = explainShopeeError(error);
       console.warn(`⚠️ Falha total na coleta dinâmica: ${hint}`);
@@ -670,6 +741,19 @@ async function main() {
   writeJson(LINKS_FILE, affiliateLinks);
   const completedAt = new Date().toISOString();
   diagnostics.dynamicPublished = dynamic.length;
+
+  // Registra no histórico persistente TUDO que está sendo mostrado agora
+  // (o que garante o cooldown de repetição na próxima rodada), e limpa
+  // entradas antigas para o arquivo não crescer sem limite.
+  const cooldownRuns = Math.max(0, config.repeatCooldownRuns ?? 4);
+  for (const p of output) {
+    if (!p?.id) continue;
+    history[String(p.id)] = { lastRun: runCount, lastShownAt: completedAt };
+  }
+  const prunedHistory = pruneHistory(history, runCount, cooldownRuns);
+  writeJson(HISTORY_FILE, prunedHistory);
+  diagnostics.historyEntries = Object.keys(prunedHistory).length;
+
   writeSyncMeta({ startedAt, completedAt, productsCount: output.length, source, diagnostics, runCount });
 
   console.log(`\n✅ products.json: ${output.length} produtos`);
