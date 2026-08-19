@@ -111,6 +111,10 @@
     .mini h3{margin:0;font:700 15px/1.3 "Space Grotesk",sans-serif}
     .mini p{margin:0;color:var(--muted);font-size:12px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
     .mini-bottom{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .mini-price-block{display:flex;flex-direction:column;gap:2px;min-width:0}
+    .mini-price-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .mini-old{color:var(--muted);text-decoration:line-through;font-size:11px;font-family:"JetBrains Mono",monospace}
+    .mini-off{padding:2px 6px;border-radius:6px;background:rgba(232,46,5,.15);color:#ff7d61;font-size:10px;font-weight:700;font-family:"JetBrains Mono",monospace;white-space:nowrap}
     .mini-price{font:700 13px "JetBrains Mono",monospace;color:var(--accent)}
     .mini-link{font-size:12px;font-weight:700;color:var(--primary);text-decoration:none}
     footer{padding:30px;margin:0 auto 40px;text-align:center}
@@ -118,11 +122,22 @@
     .badge{display:inline-flex;gap:7px;align-items:center;color:var(--shopee,var(--primary));font:600 11px "JetBrains Mono",monospace;text-transform:uppercase;margin-bottom:14px}
     .credit{margin-top:14px;color:var(--muted);font:700 12px "Space Grotesk",sans-serif}
     @media (max-width:640px){
-      .top{top:6px}.nav-links{display:none}.hero{padding-top:30px}
+      .top{top:6px}.hero{padding-top:30px}
       .glass{box-shadow:0 8px 22px rgba(0,0,0,.25)}
       .thumb{flex-basis:72px;width:72px;height:72px}.card-top{gap:12px}
       .price-row{align-items:stretch}.price{min-width:0}.cta{width:100%}
       .grid{grid-template-columns:1fr}.mini-media{height:180px}
+      /* Nav compacta em telas pequenas: os dois links continuam visíveis,
+         só com menos respiro, para caberem ao lado da logo sem quebrar linha. */
+      .nav-pill{padding:6px 8px 6px 6px}
+      .logo-mark{width:64px;height:33px}
+      .nav-links{gap:2px;font-size:13px}
+      .nav-links a{padding:8px 10px}
+    }
+    @media (max-width:380px){
+      .logo-mark{width:52px;height:27px}
+      .nav-links{font-size:12px}
+      .nav-links a{padding:7px 8px}
     }
     @media (prefers-reduced-motion:reduce){
       html{scroll-behavior:auto}.scanning .ring{animation:none}.card{transition:none}.scan-btn:hover,.scan-btn:active{transform:none}
@@ -299,9 +314,17 @@
           const title = document.createElement('h3'); title.textContent = p.title || 'Produto Shopee';
           const desc = document.createElement('p'); desc.textContent = p.desc || '';
           const bottom = document.createElement('div'); bottom.className='mini-bottom';
+          const priceBlock = document.createElement('div'); priceBlock.className='mini-price-block';
+          if (p.old || p.off) {
+            const priceTop = document.createElement('div'); priceTop.className='mini-price-top';
+            if (p.old) { const old = document.createElement('span'); old.className='mini-old'; old.textContent = p.old; priceTop.appendChild(old); }
+            if (p.off) { const off = document.createElement('span'); off.className='mini-off'; off.textContent = p.off; priceTop.appendChild(off); }
+            priceBlock.appendChild(priceTop);
+          }
           const price = document.createElement('span'); price.className='mini-price'; price.textContent=p.now||'Consultar';
+          priceBlock.appendChild(price);
           const link = document.createElement('a'); link.className='mini-link'; link.href=p.affLink||p.productLink||'#'; link.target='_blank'; link.rel='nofollow sponsored noopener'; link.textContent='Comprar →'; link.setAttribute('aria-label',`Comprar ${p.title||'produto'} na Shopee`);
-          bottom.append(price,link); content.append(tag,title,desc,bottom); card.append(media,content); frag.append(card);
+          bottom.append(priceBlock,link); content.append(tag,title,desc,bottom); card.append(media,content); frag.append(card);
         });
         els.grid.replaceChildren(frag);
         els.count.textContent = `${Math.min(state.products.length,50)} achados disponíveis`;
