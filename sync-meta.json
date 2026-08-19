@@ -1,9 +1,9 @@
 {
-  "status": "success",
-  "source": "api-dynamic",
+  "status": "seed",
   "intervalMinutes": 30,
-  "startedAt": "2026-08-19T00:29:12.083Z",
-  "completedAt": "2026-08-19T00:29:34.215Z",
-  "nextUpdateAt": "2026-08-19T00:59:34.215Z",
-  "productsCount": 30
+  "startedAt": null,
+  "completedAt": null,
+  "nextUpdateAt": "2026-08-18T22:39:24.548245Z",
+  "productsCount": 20,
+  "successfulCount": 0
 }

@@ -16,13 +16,19 @@ O projeto usa a **Shopee Affiliate Open API (Brasil)** com duas fases:
 
 O contador regressivo do site ficava travado em `30:00` porque `loadMeta()` não retornava nenhum valor — então a condição que disparava `startCountdown()` nunca era verdadeira, mesmo com o `sync-meta.json` correto. Isso foi corrigido: agora o relógio inicia sempre que existe um `nextUpdateAt` válido em memória, e a checagem do servidor passou de 60s para 20s para refletir mais rápido cada nova publicação do bot.
 
-## Regra para não deixar vazio
+## Regra para não deixar vazio (e nunca ficar "travado")
 
 Se uma execução da API falhar ou retornar poucos produtos válidos:
 
-- o catálogo anterior é preservado;
+- produtos dinâmicos novos, mesmo que poucos, **são sempre publicados** — o bot completa o restante do catálogo com os itens anteriores, em vez de descartar tudo. Antes, se a coleta não batesse 24 produtos válidos, o ciclo inteiro era jogado fora e `products.json`/`links.json` ficavam idênticos ao anterior por tempo indefinido; isso foi corrigido.
 - na primeira execução sem catálogo anterior, os 20 produtos fixos são publicados;
 - `products.json` nunca é zerado por uma falha temporária da Shopee.
+
+## Por que às vezes o catálogo parece não mudar
+
+- `sync-meta.json` agora traz um campo `diagnostics` em toda execução, com: contagem de produtos por palavra-chave, quantos candidatos foram descartados (sem imagem/link), quantos links de afiliado falharam ao gerar, e uma lista `errors` com os erros reais devolvidos pela Shopee (com o código e uma explicação em português).
+- Se `diagnostics.apiOk` vier `false`, a chamada de teste inicial já falhou — normalmente é credencial errada (`10020`) ou acesso à API não liberado (`10035`). Confira `diagnostics.errors[0]` para o motivo exato.
+- Isso pode ser visto direto no arquivo publicado no repositório, sem precisar abrir o log do GitHub Actions.
 
 ## Arquivos
 
