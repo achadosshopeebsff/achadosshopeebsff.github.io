@@ -23,12 +23,12 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Baixar o repositório
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Configurar Node.js
         uses: actions/setup-node@v4
@@ -44,12 +44,37 @@ jobs:
 
       - name: Publicar products.json, links.json e relógio
         run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add products.json links.json sync-meta.json
+
           if git diff --staged --quiet; then
             echo "Nenhuma alteração para publicar."
-          else
-            git commit -m "Atualizar catálogo Shopee"
-            git push
+            exit 0
           fi
+
+          git commit -m "Atualizar catálogo Shopee"
+
+          # O remoto pode ter avançado entre o checkout e este push (outra
+          # execução do bot, um push manual etc). Em vez de falhar, busca o
+          # que há de novo e reaplica nosso commit por cima, tentando de novo
+          # algumas vezes com um pequeno intervalo.
+          attempt=0
+          max_attempts=5
+          until git push origin HEAD:main; do
+            attempt=$((attempt + 1))
+            if [ "$attempt" -ge "$max_attempts" ]; then
+              echo "❌ Falha ao publicar após $attempt tentativas."
+              exit 1
+            fi
+            wait_seconds=$((attempt * 5))
+            echo "⚠️ Push rejeitado (remoto mudou). Sincronizando e tentando de novo em ${wait_seconds}s… (tentativa $attempt/$max_attempts)"
+            sleep "$wait_seconds"
+            git fetch origin main
+            # -X ours: em caso raro de conflito nesses 3 arquivos gerados,
+            # mantém a versão mais nova (a que acabamos de coletar da Shopee).
+            git rebase -X ours origin/main
+          done
+
+          echo "✅ Catálogo publicado com sucesso."
