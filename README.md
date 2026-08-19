@@ -3,7 +3,8 @@
 O projeto usa a **Shopee Affiliate Open API (Brasil)** com duas fases:
 
 1. **Catálogo inicial:** os 20 produtos fornecidos no `fixed-products.json` ficam publicados desde o primeiro acesso para o site nunca começar vazio.
-2. **Catálogo automático:** após uma sincronização válida, o bot consulta `productOfferV2` por palavras-chave e também uma lista `top-performing`, ranqueia os melhores produtos e publica **30 itens a cada ciclo** (`maxProducts` em `bot-config.json`). Os produtos dinâmicos usam o `offerLink` afiliado retornado pela API — que já carrega o tracking da sua conta (ligada ao `SHOPEE_APP_ID`/`SHOPEE_APP_SECRET`); se esse campo vier vazio, o bot tenta `generateShortLink` com o `productLink` e os `subIds` configurados, para manter o rastreio de origem.
+2. **Catálogo automático:** após uma sincronização válida, o bot consulta `productOfferV2` por palavras-chave e também uma lista `top-performing`, ranqueia os melhores produtos e publica **50 itens a cada ciclo** (`maxProducts` em `bot-config.json`). Os produtos dinâmicos usam o `offerLink` afiliado retornado pela API — que já carrega o tracking da sua conta (ligada ao `SHOPEE_APP_ID`/`SHOPEE_APP_SECRET`); se esse campo vier vazio, o bot tenta `generateShortLink` com o `productLink` e os `subIds` configurados, para manter o rastreio de origem.
+3. **Rotação de ordenação:** a cada execução o bot alterna o `sortType` da busca (mais vendidos → maior comissão → relevância → menor preço, nessa ordem, controlado por `rotateSortType`) para trazer produtos realmente diferentes a cada ciclo de 30 min, em vez de repetir sempre a mesma lista de "mais vendidos". O número da execução fica salvo em `sync-meta.json` (`runCount`).
 
 ## Atualização
 

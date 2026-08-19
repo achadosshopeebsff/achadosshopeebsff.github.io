@@ -284,7 +284,7 @@
 
       function renderGrid() {
         const frag = document.createDocumentFragment();
-        state.products.slice(0, 24).forEach((p) => {
+        state.products.slice(0, 50).forEach((p) => {
           const card = document.createElement('article');
           card.className = 'mini glass';
           const media = document.createElement('div'); media.className = 'mini-media'; media.style.background = p.accent || '#2a1c18';
@@ -304,7 +304,7 @@
           bottom.append(price,link); content.append(tag,title,desc,bottom); card.append(media,content); frag.append(card);
         });
         els.grid.replaceChildren(frag);
-        els.count.textContent = `${Math.min(state.products.length,24)} achados disponíveis`;
+        els.count.textContent = `${Math.min(state.products.length,50)} achados disponíveis`;
       }
 
       function formatRemaining(ms) {

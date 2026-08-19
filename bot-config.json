@@ -1,13 +1,14 @@
 {
   "mode": "initial-fixed-then-dynamic-api",
   "refreshIntervalMinutes": 30,
-  "maxProducts": 30,
-  "minDynamicProducts": 24,
-  "pagesPerKeyword": 1,
+  "maxProducts": 50,
+  "minDynamicProducts": 40,
+  "pagesPerKeyword": 2,
   "limitPerQuery": 50,
-  "topPerformingLimit": 50,
+  "topPerformingLimit": 100,
   "includeTopPerforming": true,
   "preserveCatalogOnApiFailure": true,
+  "rotateSortType": true,
   "subIds": ["achadosshopeebsf", "auto", "site"],
   "keywords": [
     "fone bluetooth",
@@ -25,6 +26,12 @@
     "acessorios celular",
     "eletronicos",
     "gadget",
-    "ofertas"
+    "ofertas",
+    "cozinha",
+    "pet shop",
+    "carro acessorios",
+    "papelaria",
+    "brinquedos",
+    "fitness"
   ]
 }
