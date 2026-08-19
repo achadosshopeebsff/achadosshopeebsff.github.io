@@ -1,46 +1,9 @@
 {
-  "status": "success",
-  "source": "api-dynamic",
+  "status": "seed",
   "intervalMinutes": 30,
-  "startedAt": "2026-08-19T11:56:25.161Z",
-  "completedAt": "2026-08-19T11:57:20.048Z",
-  "nextUpdateAt": "2026-08-19T12:27:20.048Z",
-  "productsCount": 50,
-  "runCount": 7,
-  "diagnostics": {
-    "apiOk": true,
-    "keywordCounts": {
-      "fone bluetooth": 100,
-      "air fryer": 100,
-      "smartwatch": 100,
-      "caixa de som bluetooth": 100,
-      "suporte celular": 100,
-      "led": 100,
-      "organizador": 100,
-      "utensilios cozinha": 100,
-      "beleza": 100,
-      "moda feminina": 100,
-      "moda masculina": 100,
-      "casa e decoracao": 100,
-      "acessorios celular": 100,
-      "eletronicos": 100,
-      "gadget": 100,
-      "ofertas": 100,
-      "cozinha": 100,
-      "pet shop": 100,
-      "carro acessorios": 100,
-      "papelaria": 100,
-      "brinquedos": 100,
-      "fitness": 100
-    },
-    "topPerformingCount": 0,
-    "candidatesRaw": 2044,
-    "candidatesAfterFilter": 2044,
-    "candidatesDroppedMissingFields": 0,
-    "affiliateLinkFailures": 0,
-    "errors": [
-      "top-performing: [11001] Parâmetros inválidos na consulta."
-    ],
-    "dynamicPublished": 50
-  }
+  "startedAt": null,
+  "completedAt": null,
+  "nextUpdateAt": "2026-08-18T22:39:24.548245Z",
+  "productsCount": 20,
+  "successfulCount": 0
 }
