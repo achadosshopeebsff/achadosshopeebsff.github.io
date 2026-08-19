@@ -2,11 +2,11 @@
   "status": "success",
   "source": "api-dynamic",
   "intervalMinutes": 30,
-  "startedAt": "2026-08-19T03:14:57.069Z",
-  "completedAt": "2026-08-19T03:15:47.441Z",
-  "nextUpdateAt": "2026-08-19T03:45:47.441Z",
+  "startedAt": "2026-08-19T05:06:04.612Z",
+  "completedAt": "2026-08-19T05:06:46.756Z",
+  "nextUpdateAt": "2026-08-19T05:36:46.756Z",
   "productsCount": 50,
-  "runCount": 2,
+  "runCount": 3,
   "diagnostics": {
     "apiOk": true,
     "keywordCounts": {
@@ -34,8 +34,8 @@
       "fitness": 100
     },
     "topPerformingCount": 0,
-    "candidatesRaw": 2153,
-    "candidatesAfterFilter": 2153,
+    "candidatesRaw": 2046,
+    "candidatesAfterFilter": 2046,
     "candidatesDroppedMissingFields": 0,
     "affiliateLinkFailures": 0,
     "errors": [
