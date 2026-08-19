@@ -2,11 +2,11 @@
   "status": "success",
   "source": "api-dynamic",
   "intervalMinutes": 30,
-  "startedAt": "2026-08-19T22:57:12.618Z",
-  "completedAt": "2026-08-19T22:59:57.074Z",
-  "nextUpdateAt": "2026-08-19T23:29:57.074Z",
+  "startedAt": "2026-08-19T23:53:45.497Z",
+  "completedAt": "2026-08-19T23:56:30.239Z",
+  "nextUpdateAt": "2026-08-20T00:26:30.239Z",
   "productsCount": 90,
-  "runCount": 2,
+  "runCount": 3,
   "diagnostics": {
     "apiOk": true,
     "keywordCounts": {
@@ -38,10 +38,10 @@
       "capacete moto": 50,
       "capacete ciclismo": 50,
       "smartphone": 50,
-      "smartphone barato": 0,
+      "smartphone barato": 7,
       "celular android": 50,
-      "celular 5g barato": 0,
-      "smartphone entrada": 3,
+      "celular 5g barato": 5,
+      "smartphone entrada": 50,
       "papel de parede adesivo": 50,
       "luminaria led": 50,
       "sapateira organizador": 50,
@@ -144,18 +144,18 @@
       "produtos de limpeza": 50
     },
     "topPerformingCount": 50,
-    "candidatesRaw": 6474,
-    "candidatesAfterFilter": 6474,
+    "candidatesRaw": 6432,
+    "candidatesAfterFilter": 6432,
     "candidatesDroppedMissingFields": 0,
-    "candidatesDroppedLowRating": 73,
+    "candidatesDroppedLowRating": 108,
     "freshCandidates": 270,
-    "repeatableCandidates": 38,
+    "repeatableCandidates": 51,
     "freshPublished": 90,
     "repeatPublished": 0,
     "affiliateLinkFailures": 0,
     "errors": [],
     "cooldownRuns": 4,
     "dynamicPublished": 90,
-    "historyEntries": 270
+    "historyEntries": 360
   }
 }
