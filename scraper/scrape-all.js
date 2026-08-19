@@ -342,13 +342,25 @@ function fixedAsFallback(fixed) {
   }));
 }
 
-async function searchKeyword(keyword, config) {
+// sortType da Shopee p/ productOfferV2: 1=Relevância, 2=Vendidos, 3=Maior preço,
+// 4=Menor preço, 5=Comissão. Girar entre eles a cada ciclo (baseado no runCount
+// persistido no sync-meta.json) traz produtos DIFERENTES a cada execução, em vez
+// de sempre repetir a mesma lista de "mais vendidos".
+const SORT_TYPE_ROTATION = [2, 5, 1, 4];
+
+function pickSortType(config, runCount) {
+  if (config.rotateSortType === false) return 2;
+  return SORT_TYPE_ROTATION[runCount % SORT_TYPE_ROTATION.length];
+}
+
+async function searchKeyword(keyword, config, runCount) {
   const results = [];
   const pages = Math.max(1, Math.min(config.pagesPerKeyword || 2, 5));
   const limit = Math.max(1, Math.min(config.limitPerQuery || 50, 500));
+  const sortType = pickSortType(config, runCount);
   for (let page = 1; page <= pages; page++) {
     const data = await withRateLimitRetry(() =>
-      graphql(buildSearchQuery({ keyword, sortType: 2, page, limit }))
+      graphql(buildSearchQuery({ keyword, sortType, page, limit }))
     );
     const connection = data?.productOfferV2;
     results.push(...(connection?.nodes || []));
@@ -367,13 +379,13 @@ async function topPerforming(config) {
 // o limite de requisições (erro 10030) quando o bot passa por várias keywords.
 const API_CALL_DELAY_MS = 350;
 
-async function collectDynamicProducts(config, diagnostics) {
+async function collectDynamicProducts(config, diagnostics, runCount) {
   const map = new Map();
   const keywords = Array.isArray(config.keywords) ? config.keywords : [];
 
   for (const keyword of keywords) {
     try {
-      const nodes = await searchKeyword(keyword, config);
+      const nodes = await searchKeyword(keyword, config, runCount);
       console.log(`  ✓ ${keyword}: ${nodes.length} produtos encontrados`);
       diagnostics.keywordCounts[keyword] = nodes.length;
       for (const node of nodes) {
@@ -409,7 +421,7 @@ async function collectDynamicProducts(config, diagnostics) {
 }
 
 async function buildDynamicCatalog(nodes, config, diagnostics) {
-  const target = Math.max(1, config.maxProducts || 30);
+  const target = Math.max(1, config.maxProducts || 50);
   const beforeFilter = nodes.length;
   const filtered = nodes.filter((p) => p && p.itemId && p.productLink && p.imageUrl);
   diagnostics.candidatesRaw = beforeFilter;
@@ -462,7 +474,7 @@ function mergeWithPrevious(dynamic, previous, target) {
   return merged;
 }
 
-function writeSyncMeta({ startedAt, completedAt, productsCount, source, diagnostics }) {
+function writeSyncMeta({ startedAt, completedAt, productsCount, source, diagnostics, runCount }) {
   const intervalMinutes = 30;
   const nextUpdateAt = new Date(Date.parse(completedAt) + intervalMinutes * 60 * 1000).toISOString();
   writeJson(META_FILE, {
@@ -473,6 +485,7 @@ function writeSyncMeta({ startedAt, completedAt, productsCount, source, diagnost
     completedAt,
     nextUpdateAt,
     productsCount,
+    runCount,
     diagnostics
   });
 }
@@ -480,25 +493,29 @@ function writeSyncMeta({ startedAt, completedAt, productsCount, source, diagnost
 async function main() {
   const config = readJson(CONFIG_FILE, {
     refreshIntervalMinutes: 30,
-    maxProducts: 30,
-    minDynamicProducts: 24,
-    pagesPerKeyword: 1,
+    maxProducts: 50,
+    minDynamicProducts: 40,
+    pagesPerKeyword: 2,
     limitPerQuery: 50,
-    topPerformingLimit: 50,
+    topPerformingLimit: 100,
     includeTopPerforming: true,
+    rotateSortType: true,
     keywords: [],
     subIds: ['achadosshopeebsf']
   });
   const fixed = readJson(FIXED_FILE, []);
   const previous = readJson(OUTPUT_FILE, []);
+  const previousMeta = readJson(META_FILE, {});
+  const runCount = Number.isFinite(previousMeta?.runCount) ? previousMeta.runCount + 1 : 0;
   const startedAt = new Date().toISOString();
 
   if (!Array.isArray(fixed) || fixed.length === 0) throw new Error('fixed-products.json está vazio.');
 
   console.log('🤖 Bot de achadinhos Shopee iniciado');
   console.log(`🟢 Catálogo inicial: ${fixed.length} produtos fixos`);
-  console.log(`🔄 Depois, catálogo dinâmico: até ${config.maxProducts || 30} produtos`);
+  console.log(`🔄 Depois, catálogo dinâmico: até ${config.maxProducts || 50} produtos`);
   console.log(`⏱️ Atualização programada: a cada ${config.refreshIntervalMinutes || 30} minutos`);
+  console.log(`🔁 Execução nº ${runCount} · sortType desta rodada: ${pickSortType(config, runCount)}`);
 
   const diagnostics = {
     apiOk: true,
@@ -525,7 +542,7 @@ async function main() {
   let dynamic = [];
   if (access.ok) {
     try {
-      const candidates = await collectDynamicProducts(config, diagnostics);
+      const candidates = await collectDynamicProducts(config, diagnostics, runCount);
       console.log(`\n📊 ${candidates.length} candidatos únicos após coleta.`);
       dynamic = await buildDynamicCatalog(candidates, config, diagnostics);
       console.log(`✅ ${dynamic.length} produtos dinâmicos com link de afiliado e imagem.`);
@@ -536,8 +553,8 @@ async function main() {
     }
   }
 
-  const target = Math.max(1, config.maxProducts || 30);
-  const minDynamic = Math.max(1, config.minDynamicProducts || 24);
+  const target = Math.max(1, config.maxProducts || 50);
+  const minDynamic = Math.max(1, config.minDynamicProducts || 40);
   const previousIsDynamic = Array.isArray(previous) && previous.some((p) => p?.source === 'api-dynamic');
 
   let output;
@@ -572,7 +589,7 @@ async function main() {
   writeJson(LINKS_FILE, affiliateLinks);
   const completedAt = new Date().toISOString();
   diagnostics.dynamicPublished = dynamic.length;
-  writeSyncMeta({ startedAt, completedAt, productsCount: output.length, source, diagnostics });
+  writeSyncMeta({ startedAt, completedAt, productsCount: output.length, source, diagnostics, runCount });
 
   console.log(`\n✅ products.json: ${output.length} produtos`);
   console.log(`🔗 links.json: ${affiliateLinks.length} links de afiliado`);
