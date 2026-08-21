@@ -2,11 +2,11 @@
   "status": "success",
   "source": "api-dynamic",
   "intervalMinutes": 30,
-  "startedAt": "2026-08-21T03:32:17.618Z",
-  "completedAt": "2026-08-21T03:34:28.223Z",
-  "nextUpdateAt": "2026-08-21T04:04:28.223Z",
+  "startedAt": "2026-08-21T05:51:17.710Z",
+  "completedAt": "2026-08-21T05:53:26.016Z",
+  "nextUpdateAt": "2026-08-21T06:23:26.016Z",
   "productsCount": 90,
-  "runCount": 16,
+  "runCount": 17,
   "diagnostics": {
     "apiOk": true,
     "keywordCounts": {
@@ -41,7 +41,7 @@
       "smartphone barato": 0,
       "celular android": 50,
       "celular 5g barato": 0,
-      "smartphone entrada": 50,
+      "smartphone entrada": 2,
       "papel de parede adesivo": 50,
       "luminaria led": 50,
       "sapateira organizador": 50,
@@ -144,18 +144,18 @@
       "produtos de limpeza": 50
     },
     "topPerformingCount": 50,
-    "candidatesRaw": 6408,
-    "candidatesAfterFilter": 6408,
+    "candidatesRaw": 6465,
+    "candidatesAfterFilter": 6465,
     "candidatesDroppedMissingFields": 0,
-    "candidatesDroppedLowRating": 7,
+    "candidatesDroppedLowRating": 95,
     "freshCandidates": 270,
-    "repeatableCandidates": 71,
+    "repeatableCandidates": 10,
     "freshPublished": 90,
     "repeatPublished": 0,
     "affiliateLinkFailures": 0,
     "errors": [],
     "cooldownRuns": 4,
     "dynamicPublished": 90,
-    "historyEntries": 980
+    "historyEntries": 986
   }
 }
