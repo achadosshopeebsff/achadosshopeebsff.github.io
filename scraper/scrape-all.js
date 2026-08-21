@@ -322,15 +322,38 @@ function scoreProduct(p, config) {
   const priceScore = price > 0 ? Math.max(0, 26 - Math.log10(price) * 9) : 10;
   const salesScore = Math.min(28, Math.log10(Math.max(1, sales)) * 6);
   const ratingScore = Math.min(24, rating * 4.8); // nota pesa mais: "produto de qualidade"
-  const discountScore = Math.min(12, discount / 2);
+
+  // Desconto: teto bem mais alto que antes (era 12, agora 24) para promoção
+  // relâmpago / super oferta pesar de verdade no ranking, não só um empurrãozinho.
+  const discountScore = Math.min(24, discount / 1.5);
+  // Bônus explícito de "achado excepcional" para descontos de nível
+  // liquidação/relâmpago (>=40% e >=60%), somado ao discountScore acima.
+  let flashBonus = 0;
+  if (discount >= 60) flashBonus += 10;
+  else if (discount >= 40) flashBonus += 5;
+
   const commissionScore = Math.min(6, commission / 3);
+
+  // Bônus de "excelente avaliação" (pedido explícito do usuário): nota alta
+  // sozinha já pesa em ratingScore, mas aqui reforçamos ainda mais os melhores
+  // avaliados (produto de qualidade de verdade, não só "acima da média").
+  let ratingBonus = 0;
+  if (rating >= 4.8) ratingBonus += 6;
+  else if (rating >= 4.5) ratingBonus += 3;
+
+  // Combo "barato + ótima nota" — exatamente o pedido do usuário: produto
+  // barato com excelente avaliação ganha um empurrão extra além da soma das
+  // partes, para aparecer na frente de itens caros com nota parecida.
+  let cheapQualityBonus = 0;
+  if (price > 0 && price <= 60 && rating >= 4.5) cheapQualityBonus += 4;
 
   // Reforço para categorias de maior crescimento projetado até 2027
   // (bot-config.json > trendingCategoryBoost), sem excluir as demais.
   const boostMap = config?.trendingCategoryBoost || {};
   const categoryBoost = toNumber(boostMap[inferTag(p.productName)], 0);
 
-  return priceScore + salesScore + ratingScore + discountScore + commissionScore + categoryBoost;
+  return priceScore + salesScore + ratingScore + discountScore + flashBonus +
+    commissionScore + ratingBonus + cheapQualityBonus + categoryBoost;
 }
 
 function normalizeProduct(product, affiliateLink) {
@@ -674,8 +697,8 @@ function writeSyncMeta({ startedAt, completedAt, productsCount, source, diagnost
 async function main() {
   const config = readJson(CONFIG_FILE, {
     refreshIntervalMinutes: 30,
-    maxProducts: 90,
-    minDynamicProducts: 60,
+    maxProducts: 300,
+    minDynamicProducts: 150,
     pagesPerKeyword: 1,
     limitPerQuery: 50,
     topPerformingLimit: 50,
