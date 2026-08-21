@@ -15,7 +15,12 @@ on:
       - "scraper/**"
       - ".github/workflows/update-products.yml"
   schedule:
-    - cron: "0,30 * * * *"
+    # Evita ":00" e ":30" de propósito — são os minutos de MAIOR concorrência
+    # no GitHub Actions (todo workflow "óbvio" agenda pra hora cheia/meia-hora),
+    # e é oficialmente documentado pelo GitHub como o horário de maior atraso:
+    # "High load times include the start of every hour." Usar :07/:37 mantém
+    # o intervalo de 30 em 30 min, só evitando o pico de fila nesse minuto exato.
+    - cron: "7,37 * * * *"
   workflow_dispatch: {}
 
 permissions:
