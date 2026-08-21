@@ -116,6 +116,14 @@
     .mini-old{color:var(--muted);text-decoration:line-through;font-size:11px;font-family:"JetBrains Mono",monospace}
     .mini-off{padding:2px 6px;border-radius:6px;background:rgba(232,46,5,.15);color:#ff7d61;font-size:10px;font-weight:700;font-family:"JetBrains Mono",monospace;white-space:nowrap}
     .mini-price{font:700 13px "JetBrains Mono",monospace;color:var(--accent)}
+    .load-more-btn{
+      display:block; width:100%; margin:16px auto 0; padding:14px 20px; border-radius:14px;
+      background:var(--glass); border:1px solid var(--border); color:var(--text);
+      font:700 14px Inter,sans-serif; cursor:pointer; backdrop-filter:blur(14px);
+      transition:transform .15s ease, background .15s ease;
+    }
+    .load-more-btn:hover{background:rgba(252,95,2,.16); transform:translateY(-1px)}
+    .load-more-btn:active{transform:translateY(0)}
     .mini-link{font-size:12px;font-weight:700;color:var(--primary);text-decoration:none}
     footer{padding:30px;margin:0 auto 40px;text-align:center}
     footer p{max-width:620px;margin:0 auto;color:var(--muted);font-size:12px;line-height:1.7}
@@ -233,7 +241,12 @@
     (() => {
       'use strict';
 
-      const state = { products: [], lastIndex: -1, busy: false, refreshTimer: null, countdownTimer: null, nextUpdateAt: null, lastSyncAt: null };
+      const state = { products: [], lastIndex: -1, busy: false, refreshTimer: null, countdownTimer: null, nextUpdateAt: null, lastSyncAt: null, visibleCount: 0 };
+      // Sem teto artificial: mostramos o catálogo inteiro que o bot publicar.
+      // Renderizamos em lotes (scroll incremental) só para não travar o
+      // celular jogando centenas de cards no DOM de uma vez só.
+      const GRID_BATCH_SIZE = 24;
+      let loadMoreObserver = null;
       const $ = (id) => document.getElementById(id);
       const els = {
         scanner: $('scanner'), scanBtn: $('scanBtn'), card: $('productCard'), again: $('againBtn'),
@@ -298,8 +311,13 @@
       }
 
       function renderGrid() {
+        const total = state.products.length;
+        if (!state.visibleCount) state.visibleCount = GRID_BATCH_SIZE;
+        if (state.visibleCount > total) state.visibleCount = total; // catálogo encolheu, ajusta
+        const toRender = state.products.slice(0, state.visibleCount);
+
         const frag = document.createDocumentFragment();
-        state.products.slice(0, 50).forEach((p) => {
+        toRender.forEach((p) => {
           const card = document.createElement('article');
           card.className = 'mini glass';
           const media = document.createElement('div'); media.className = 'mini-media'; media.style.background = p.accent || '#2a1c18';
@@ -327,7 +345,39 @@
           bottom.append(priceBlock,link); content.append(tag,title,desc,bottom); card.append(media,content); frag.append(card);
         });
         els.grid.replaceChildren(frag);
-        els.count.textContent = `${Math.min(state.products.length,50)} achados disponíveis`;
+        els.count.textContent = `${total} achados disponíveis`;
+        renderLoadMore(total);
+      }
+
+      function renderLoadMore(total) {
+        let sentinel = document.getElementById('loadMoreBtn');
+        if (state.visibleCount >= total) {
+          if (sentinel) sentinel.remove();
+          if (loadMoreObserver) { loadMoreObserver.disconnect(); loadMoreObserver = null; }
+          return;
+        }
+        function loadNextBatch() {
+          state.visibleCount = Math.min(state.products.length, state.visibleCount + GRID_BATCH_SIZE);
+          renderGrid();
+        }
+        if (!sentinel) {
+          sentinel = document.createElement('button');
+          sentinel.id = 'loadMoreBtn';
+          sentinel.type = 'button';
+          sentinel.className = 'load-more-btn glass';
+          sentinel.textContent = 'Carregar mais achados';
+          sentinel.addEventListener('click', loadNextBatch, { passive: true });
+          els.grid.insertAdjacentElement('afterend', sentinel);
+        }
+        if (!loadMoreObserver && 'IntersectionObserver' in window) {
+          // Carrega o próximo lote sozinho quando o botão chega perto da tela
+          // (scroll "infinito"), sem precisar clicar — o clique continua
+          // funcionando como alternativa manual.
+          loadMoreObserver = new IntersectionObserver((entries) => {
+            if (entries.some((e) => e.isIntersecting)) loadNextBatch();
+          }, { rootMargin: '600px' });
+          loadMoreObserver.observe(sentinel);
+        }
       }
 
       function formatRemaining(ms) {

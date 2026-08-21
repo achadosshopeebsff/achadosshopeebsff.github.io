@@ -1,8 +1,9 @@
 {
   "mode": "initial-fixed-then-dynamic-api",
   "refreshIntervalMinutes": 30,
-  "maxProducts": 90,
-  "minDynamicProducts": 60,
+  "maxProducts": 300,
+  "_maxProductsNote": "sem limite 'de verdade' no sentido pratico: o pool de candidatos por ciclo (132+ keywords x 50 + retries) costuma passar de 4000 produtos unicos, entao 300 e alcancavel com folga mantendo qualidade (rating minimo + cooldown anti-repeticao). O front-end (index.html) nao tem mais teto de exibicao - mostra o catalogo inteiro.",
+  "minDynamicProducts": 150,
   "pagesPerKeyword": 1,
   "limitPerQuery": 50,
   "topPerformingLimit": 50,
@@ -156,6 +157,17 @@
     "papelaria",
     "ferramentas manuais kit",
     "aspirador de po portatil",
-    "produtos de limpeza"
+    "produtos de limpeza",
+    "promocao relampago",
+    "oferta relampago",
+    "super oferta",
+    "mega promocao",
+    "liquidacao",
+    "queima de estoque",
+    "cupom desconto",
+    "frete gratis promocao",
+    "menor preco",
+    "achadinhos baratos",
+    "ofertas do dia"
   ]
 }
