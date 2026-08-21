@@ -370,7 +370,12 @@ function normalizeProduct(product, affiliateLink) {
 }
 
 function fixedAsFallback(fixed) {
-  return fixed.map((p) => ({
+  // Garantia "sem exceção": mesmo neste fallback de emergência (só usado se a
+  // API falhar por completo e ainda não existir nenhum catálogo anterior),
+  // um item sem link de afiliado real nunca é publicado.
+  return fixed
+    .filter((p) => !!p.offerLink)
+    .map((p) => ({
     id: String(p.itemId),
     title: p.itemName,
     desc: `${p.shopName || 'Shopee'} · ${p.sales || ''} vendidos`,
@@ -390,7 +395,7 @@ function fixedAsFallback(fixed) {
     shopId: String(String(p.productLink || '').match(/\/product\/(\d+)\//)?.[1] || ''),
     itemId: String(p.itemId),
     productLink: p.productLink || '',
-    affLink: p.offerLink || '',
+    affLink: p.offerLink,
     category1: inferTag(p.itemName),
     category2: '',
     category3: '',
@@ -459,11 +464,16 @@ async function topPerforming(config) {
 
 // Atraso pequeno entre chamadas sequenciais à API da Shopee, só para não estourar
 // o limite de requisições (erro 10030) quando o bot passa por várias keywords.
-const API_CALL_DELAY_MS = 350;
+// Espaçamento entre chamadas à Shopee para reduzir a chance de rate limit /
+// erro interno [10000] logo na primeira tentativa (132 keywords + retries +
+// segunda passada já bastam para variedade; não vale a pena arriscar mais
+// falhas só para ganhar alguns segundos de execução).
+const API_CALL_DELAY_MS = 450;
 
 async function collectDynamicProducts(config, diagnostics, runCount) {
   const map = new Map();
   const keywords = Array.isArray(config.keywords) ? config.keywords : [];
+  const failedKeywords = [];
 
   for (const keyword of keywords) {
     try {
@@ -479,8 +489,34 @@ async function collectDynamicProducts(config, diagnostics, runCount) {
       console.warn(`  ⚠ ${keyword}: ${hint}`);
       diagnostics.keywordCounts[keyword] = 0;
       diagnostics.errors.push(`keyword "${keyword}": ${hint}`);
+      failedKeywords.push(keyword);
     }
     await sleep(API_CALL_DELAY_MS);
+  }
+
+  // Segunda passada só nas keywords que falharam: erros [10000]/[10030] da
+  // Shopee costumam ser passageiros, e por essa altura (minutos depois da
+  // primeira tentativa) a instabilidade normalmente já se resolveu sozinha.
+  // Isso evita perder dezenas de palavras-chave inteiras por rodada — e é
+  // justamente esse buraco no pool de candidatos que forçava o bot a
+  // completar o catálogo com itens repetidos do ciclo anterior.
+  if (failedKeywords.length > 0) {
+    console.log(`\n🔁 Segunda tentativa para ${failedKeywords.length} keyword(s) que falharam…`);
+    for (const keyword of failedKeywords) {
+      try {
+        const nodes = await searchKeyword(keyword, config, runCount);
+        console.log(`  ✓ (2ª tentativa) ${keyword}: ${nodes.length} produtos encontrados`);
+        diagnostics.keywordCounts[keyword] = nodes.length;
+        for (const node of nodes) {
+          const id = String(node.itemId || '');
+          if (id) map.set(id, node);
+        }
+      } catch (error) {
+        const hint = explainShopeeError(error);
+        console.warn(`  ⚠ (2ª tentativa) ${keyword}: ${hint}`);
+      }
+      await sleep(API_CALL_DELAY_MS);
+    }
   }
 
   if (config.includeTopPerforming !== false) {
@@ -589,11 +625,14 @@ function pruneHistory(history, runCount, cooldownRuns) {
   return Object.fromEntries(entries.slice(0, maxEntries));
 }
 
-// Junta os produtos dinâmicos novos (sempre prioridade, pois são os mais frescos)
-// com o catálogo anterior, preenchendo o restante até o alvo. Assim, mesmo que a
-// API só devolva 5 produtos válidos na rodada, esses 5 já entram no ar — o site
-// nunca fica "travado" esperando um número mínimo perfeito de itens.
-function mergeWithPrevious(dynamic, previous, target) {
+// NOTA: esta função existia para "completar" o catálogo com itens do ciclo
+// anterior quando a coleta dinâmica vinha incompleta. Foi REMOVIDA de propósito
+// do fluxo principal (ver main()): misturar itens novos com itens do ciclo
+// passado sem checar o histórico de cooldown reintroduzia repetição — o
+// próprio problema que o usuário pediu para eliminar 100%. Preferimos
+// publicar um catálogo um pouco menor (mas 100% fresco) a "completar" com
+// itens estáticos. Mantida aqui apenas como referência histórica, sem uso.
+function mergeWithPrevious_UNUSED(dynamic, previous, target) {
   const seen = new Set();
   const merged = [];
 
@@ -711,29 +750,32 @@ async function main() {
 
   let output;
   let source;
-  if (dynamic.length >= target) {
-    // Coleta cheia: publica só os novos, ranqueados.
+  if (dynamic.length >= minDynamic) {
+    // Publica só o que foi coletado NESTA rodada — 100% fresco, sem misturar
+    // com o ciclo anterior. Se vier um pouco abaixo do alvo máximo mas acima
+    // do mínimo aceitável, ainda assim é tudo novo (fica marcado como
+    // "api-dynamic-partial" só para fins de diagnóstico, o site trata igual).
     output = dynamic.map((p) => ({ ...p, source: 'api-dynamic' }));
-    source = 'api-dynamic';
-  } else if (dynamic.length > 0 && Array.isArray(previous) && previous.length > 0) {
-    // Coleta parcial: publica os novos + completa com o catálogo anterior,
-    // em vez de descartar tudo. O site sempre reflete o que a API conseguiu trazer.
-    output = mergeWithPrevious(dynamic, previous, target);
-    source = dynamic.length >= minDynamic ? 'api-dynamic' : 'api-dynamic-partial';
-    console.warn(`⚠️ Só ${dynamic.length}/${target} produtos dinâmicos válidos; completando com o catálogo anterior.`);
+    source = dynamic.length >= target ? 'api-dynamic' : 'api-dynamic-partial';
   } else if (dynamic.length > 0) {
-    // Coleta parcial na primeira execução (sem catálogo anterior para completar).
+    // Veio bem abaixo do mínimo, mas ainda assim é produto novo de verdade.
+    // Preferimos publicar um catálogo menor e 100% fresco a "completar" com
+    // itens antigos só para bater um número redondo — isso é o que causava
+    // a sensação de "os mesmos produtos fixos sempre voltando".
     output = dynamic.map((p) => ({ ...p, source: 'api-dynamic' }));
     source = 'api-dynamic-partial';
+    console.warn(`⚠️ Só ${dynamic.length}/${target} produtos dinâmicos válidos (abaixo do mínimo de ${minDynamic}); publicando mesmo assim, 100% novos, sem completar com itens antigos.`);
   } else if (Array.isArray(previous) && previous.length > 0) {
-    // Falha total: mantém o catálogo anterior (nunca fica vazio).
+    // Falha total nesta rodada específica (ex.: instabilidade da Shopee):
+    // mantém o catálogo anterior INTEIRO, sem misturar pedaços — assim que a
+    // próxima rodada trouxer resultado, ele substitui tudo de novo.
     output = previous;
     source = previousIsDynamic ? 'previous-dynamic' : 'previous-fallback';
-    console.warn('⚠️ Nenhum produto dinâmico válido nesta rodada; mantendo catálogo anterior.');
+    console.warn('⚠️ Nenhum produto dinâmico válido nesta rodada; mantendo catálogo anterior por completo até a próxima tentativa.');
   } else {
     output = fixedAsFallback(fixed).map((p) => ({ ...p, source: 'fixed-fallback' }));
     source = 'fixed-fallback';
-    console.warn('⚠️ Primeira execução sem retorno suficiente da API; publicando catálogo inicial fixo.');
+    console.warn('⚠️ Primeira execução sem retorno suficiente da API; publicando catálogo inicial fixo (temporário, até a próxima rodada trazer produtos reais).');
   }
 
   const affiliateLinks = output.map((p) => p.affLink).filter(Boolean);
