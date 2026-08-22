@@ -697,8 +697,8 @@ function writeSyncMeta({ startedAt, completedAt, productsCount, source, diagnost
 async function main() {
   const config = readJson(CONFIG_FILE, {
     refreshIntervalMinutes: 30,
-    maxProducts: 300,
-    minDynamicProducts: 150,
+    maxProducts: 500,
+    minDynamicProducts: 250,
     pagesPerKeyword: 1,
     limitPerQuery: 50,
     topPerformingLimit: 50,
