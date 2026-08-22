@@ -1,9 +1,9 @@
 {
   "mode": "initial-fixed-then-dynamic-api",
   "refreshIntervalMinutes": 30,
-  "maxProducts": 300,
-  "_maxProductsNote": "sem limite 'de verdade' no sentido pratico: o pool de candidatos por ciclo (132+ keywords x 50 + retries) costuma passar de 4000 produtos unicos, entao 300 e alcancavel com folga mantendo qualidade (rating minimo + cooldown anti-repeticao). O front-end (index.html) nao tem mais teto de exibicao - mostra o catalogo inteiro.",
-  "minDynamicProducts": 150,
+  "maxProducts": 500,
+  "_maxProductsNote": "sem limite 'de verdade' no sentido pratico: o pool de candidatos por ciclo (150+ keywords x 50 + retries) costuma passar de 5000 produtos unicos, entao 500 e alcancavel com folga mantendo qualidade (rating minimo + cooldown anti-repeticao). O front-end (index.html) nao tem mais teto de exibicao - mostra o catalogo inteiro.",
+  "minDynamicProducts": 250,
   "pagesPerKeyword": 1,
   "limitPerQuery": 50,
   "topPerformingLimit": 50,
@@ -58,6 +58,14 @@
     "celular android",
     "celular 5g barato",
     "smartphone entrada",
+    "xiaomi",
+    "redmi 15c",
+    "redmi note",
+    "smartphone xiaomi redmi",
+    "iphone",
+    "iphone 15",
+    "iphone 16",
+    "capinha iphone 16",
     "papel de parede adesivo",
     "luminaria led",
     "sapateira organizador",
@@ -168,9 +176,6 @@
     "frete gratis promocao",
     "menor preco",
     "achadinhos baratos",
-    "ofertas do dia",
-    "xiaomi 15c",
-    "redmi poco",
-    "iphone"
+    "ofertas do dia"
   ]
 }
