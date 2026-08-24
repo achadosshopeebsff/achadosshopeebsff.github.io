@@ -268,6 +268,30 @@ function commissionPct(value) {
 // Categorias de maior consumo Shopee Brasil (relatório 2026 -> projeção 2027).
 // Ordem importa: padrões mais específicos primeiro para evitar falso-positivo
 // (ex.: "capa de chuva" não pode cair em Moda por causa de "capa").
+// Sinaliza que o produto é claramente roupa/acessório (não o aparelho em si),
+// mesmo que o texto mencione "celular"/marca de telefone em algum ponto —
+// ex.: "bolso para celular", "capinha iphone", "suporte para smartphone".
+function looksLikePhoneAccessoryOrUnrelated(n) {
+  return /capinha|capa (para|de)|pel[ií]cula|suporte|\bcase\b|bolso|porta[- ]?celular|cord[ãa]o|bra[çc]adeira|pop ?socket|trip[ée]|\bcabo\b|carregador|\bfone\b|power ?bank|adaptador|\bhub\b|\banel\b|\bshort\b|bermuda|cal[çc]a\b|legging|compress[ãa]o|academia|treino|moletom|jaqueta|camiseta|regata|\bkit\s*\d/i.test(n);
+}
+
+// Só considera "o aparelho em si" quando o texto tem marca+modelo de celular
+// de verdade, ou "smartphone"/"celular" isolado (sem contexto de roupa/
+// acessório) — normalmente acompanhado de capacidade em GB, como listagens
+// reais de celular costumam vir ("Redmi Note 13 128GB", "iPhone 15 256GB").
+function isRealPhoneListing(n) {
+  if (looksLikePhoneAccessoryOrUnrelated(n)) return false;
+  return (
+    /\bsmartphone\b/i.test(n) ||
+    /\biphone\s*\d/i.test(n) ||
+    /\bredmi\b/i.test(n) ||
+    /\bpoco\s*[a-z]?\s*\d/i.test(n) ||
+    /\bgalaxy\s*[as]\d/i.test(n) ||
+    /\bmoto\s*g\d/i.test(n) ||
+    (/\bcelular\b/i.test(n) && /\d+\s?gb/i.test(n))
+  );
+}
+
 function inferTag(name) {
   const n = String(name || '').toLowerCase();
 
@@ -276,11 +300,19 @@ function inferTag(name) {
   // por isso exige contexto (ração de/para cão, gato, cachorro, pet).
   if (/areia (sanit[aá]ria|para gato)|comedouro|fonte de [aá]gua.*pet|antipulga|coleira pet|petisco|\bpet\b|para c[aã]es|para gato|ra[cç][aã]o (de |para )?(c[aã]o|gato|cachorro|pet)/i.test(n)) return 'Pets';
 
+  // Smartphones — checado ANTES de Auto & Moto de propósito: "Motorola Moto
+  // G84" tem "moto" no nome e seria capturado por engano como item de moto se
+  // essa checagem viesse depois. IMPORTANTE: a palavra "celular"/"iphone"/
+  // "samsung" sozinha NÃO basta — ela aparece o tempo todo em roupa/acessório
+  // ("bolso para celular", "capinha iphone"), o que fazia short/legging/
+  // capinha serem marcados como "Smartphones" e tomarem a vaga garantida de
+  // celular de verdade. Só marca como Smartphones quando o texto tem cara de
+  // ser O APARELHO em si (marca+modelo, "smartphone" isolado, ou "celular"
+  // junto de capacidade em GB), e nunca quando é claramente roupa/acessório.
+  if (isRealPhoneListing(n)) return 'Smartphones';
+
   // Auto & Moto
   if (/retrovisor|escapamento|moto\b|pneu|friso de roda|capa (para )?volante|automotiv|farol|para-choque|carburador/i.test(n)) return 'Auto & Moto';
-
-  // Smartphones (mantido separado de Eletrônicos por ser categoria de ticket maior)
-  if (/smartphone|celular|iphone|xiaomi|samsung|motorola|redmi|galaxy|android\b/i.test(n)) return 'Smartphones';
 
   // Notebooks — separado de "Eletrônicos" (que hoje é dominado por acessórios
   // baratos); ter uma categoria própria é o que permite reservar vagas para
@@ -306,8 +338,11 @@ function inferTag(name) {
   // Brinquedos e bebês
   if (/brinquedo|montessori|reborn|papelaria|caderno/i.test(n)) return 'Brinquedos';
 
-  // Eletrônicos e acessórios de tecnologia
-  if (/fone|bluetooth|tws|watch|rel[oó]gio|nfc|smart|eletr[oô]nico|power ?bank|carregador|cabo usb|ring ?light|projetor|impressora|mouse|teclado|hub usb|drone|r[aá]dio comunicador|c[aâ]mera de seguran[cç]a/i.test(n)) return 'Eletrônicos';
+  // Eletrônicos e acessórios de tecnologia (inclui capinha/película/case de
+  // celular — chegam aqui porque isRealPhoneListing() já descartou "ser o
+  // aparelho em si" lá em cima; sem essa linha, esses itens ficavam sem
+  // categoria nenhuma).
+  if (/fone|bluetooth|tws|watch|rel[oó]gio|nfc|smart|eletr[oô]nico|power ?bank|carregador|cabo usb|ring ?light|projetor|impressora|mouse|teclado|hub usb|drone|r[aá]dio comunicador|c[aâ]mera de seguran[cç]a|capinha|pel[ií]cula|capa (para|de) (celular|iphone|smartphone)|suporte (para|de) (celular|smartphone)/i.test(n)) return 'Eletrônicos';
 
   // Moda
   if (/chinel|t[eê]nis|cal[cç]a|bermuda|\broupa\b|\bmoda\b|vestido|cropped|blazer|coturno|moc[aa]ssim|lingerie|conjunto fitness|moletom|blusa|camiseta|jaqueta|bolsa|bijuteria|[oó]culos de sol|sand[aá]lia/i.test(n)) return 'Moda';
