@@ -295,11 +295,36 @@
         else { els.thumbEmoji.hidden = false; els.thumbEmoji.textContent = p.icon || '🛍️'; els.thumbImg.hidden = true; }
       }
 
+      function preloadImage(url) {
+        if (!url) return;
+        const img = new Image();
+        img.decoding = 'async';
+        img.src = url;
+      }
+
+      // Prepara com antecedência (em segundo plano) o PRÓXIMO produto que vai
+      // aparecer no "Escanear", já com a foto baixada e no cache do navegador.
+      // Sem isso, a imagem só começava a baixar no instante do clique — com
+      // 500 produtos no catálogo, a chance de já estar em cache é baixa,
+      // gerando aquele atraso perceptível de ~1s antes da foto aparecer.
+      function primeNextProduct() {
+        state.nextProduct = pickProduct();
+        if (state.nextProduct?.image) preloadImage(state.nextProduct.image);
+      }
+
+      function ensureNextProductPrimed() {
+        const stillValid = state.nextProduct && state.products.some((p) => p.id === state.nextProduct.id);
+        if (!stillValid) primeNextProduct();
+      }
+
       function reveal() {
         if (state.busy) return;
         if (!state.products.length) { els.status.textContent = 'Nenhum produto disponível no momento.'; return; }
         state.busy = true; els.scanBtn.disabled = true; els.status.textContent = 'Buscando um achado…';
-        const p = pickProduct(); fillCard(p); els.scanner.classList.add('scanning');
+        const stillValid = state.nextProduct && state.products.some((p) => p.id === state.nextProduct.id);
+        const p = stillValid ? state.nextProduct : pickProduct();
+        fillCard(p); els.scanner.classList.add('scanning');
+        primeNextProduct(); // já deixa o próximo pronto (foto em cache) para o clique seguinte
         window.setTimeout(() => {
           els.scanner.classList.remove('scanning');
           els.card.classList.add('show');
@@ -429,6 +454,7 @@
           const data = await res.json();
           state.products = Array.isArray(data) ? data.filter(p => p && (p.title || p.productName) && (p.affLink || p.productLink)) : [];
           renderGrid();
+          ensureNextProductPrimed();
           // O relógio inicia (ou reinicia) sempre que temos um nextUpdateAt válido,
           // mesmo que o fetch do sync-meta.json de uma rodada específica tenha falhado
           // (nesse caso mantemos contando a partir do último valor conhecido).
