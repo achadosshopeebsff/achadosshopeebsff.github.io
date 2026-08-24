@@ -282,6 +282,15 @@ function inferTag(name) {
   // Smartphones (mantido separado de Eletrônicos por ser categoria de ticket maior)
   if (/smartphone|celular|iphone|xiaomi|samsung|motorola|redmi|galaxy|android\b/i.test(n)) return 'Smartphones';
 
+  // Notebooks — separado de "Eletrônicos" (que hoje é dominado por acessórios
+  // baratos); ter uma categoria própria é o que permite reservar vagas para
+  // notebook de verdade no catálogo (ver categoryQuotas em bot-config.json).
+  if (/notebook|laptop|ultrabook|chromebook/i.test(n)) return 'Notebooks';
+
+  // Eletrodomésticos de linha branca — separado de "Cozinha" (que aqui é para
+  // utensílios/miudezas). Mesma lógica: categoria própria = vaga garantida.
+  if (/geladeira|refrigerador|fog[ãa]o\b|micro-?ondas|lavadora|m[aá]quina de lavar|freezer|adega climatizada|cooktop|depurador de ar|secadora de roupas/i.test(n)) return 'Eletrodomésticos';
+
   // Cozinha
   if (/air ?fryer|panela|liquidificador|processador de alimentos|fatiador|descascador|forma de silicone|torneira|espremedor|utens[ií]lio.*cozinha|balan[cç]a.*cozinha/i.test(n)) return 'Cozinha';
 
@@ -298,7 +307,7 @@ function inferTag(name) {
   if (/brinquedo|montessori|reborn|papelaria|caderno/i.test(n)) return 'Brinquedos';
 
   // Eletrônicos e acessórios de tecnologia
-  if (/fone|bluetooth|tws|watch|rel[oó]gio|nfc|smart|eletr[oô]nico|power ?bank|carregador|cabo usb|ring ?light|projetor|impressora|notebook|mouse|teclado|hub usb|drone|r[aá]dio comunicador|c[aâ]mera de seguran[cç]a/i.test(n)) return 'Eletrônicos';
+  if (/fone|bluetooth|tws|watch|rel[oó]gio|nfc|smart|eletr[oô]nico|power ?bank|carregador|cabo usb|ring ?light|projetor|impressora|mouse|teclado|hub usb|drone|r[aá]dio comunicador|c[aâ]mera de seguran[cç]a/i.test(n)) return 'Eletrônicos';
 
   // Moda
   if (/chinel|t[eê]nis|cal[cç]a|bermuda|\broupa\b|\bmoda\b|vestido|cropped|blazer|coturno|moc[aa]ssim|lingerie|conjunto fitness|moletom|blusa|camiseta|jaqueta|bolsa|bijuteria|[oó]culos de sol|sand[aá]lia/i.test(n)) return 'Moda';
@@ -317,9 +326,12 @@ function scoreProduct(p, config) {
   const discount = toNumber(p.priceDiscountRate);
   const commission = commissionPct(p.commissionRate);
 
-  // Escala logarítmica: recompensa preço baixo sem zerar itens de ticket maior
-  // (ex.: smartphones), que continuam competitivos se tiverem boa nota/venda.
-  const priceScore = price > 0 ? Math.max(0, 26 - Math.log10(price) * 9) : 10;
+  // Escala logarítmica: recompensa preço baixo sem ZERAR itens de ticket maior
+  // (smartphone, notebook, geladeira). Antes o coeficiente 9 zerava qualquer
+  // item acima de ~R$774 — na prática isso fazia só acessório barato aparecer
+  // no ranking. Agora usa coeficiente mais suave e piso de 4 pontos, e a
+  // garantia de vaga por categoria (categoryQuotas) cobre o resto.
+  const priceScore = price > 0 ? Math.max(4, 26 - Math.log10(price) * 7) : 10;
   const salesScore = Math.min(28, Math.log10(Math.max(1, sales)) * 6);
   const ratingScore = Math.min(24, rating * 4.8); // nota pesa mais: "produto de qualidade"
 
@@ -495,8 +507,22 @@ const API_CALL_DELAY_MS = 450;
 
 async function collectDynamicProducts(config, diagnostics, runCount) {
   const map = new Map();
-  const keywords = Array.isArray(config.keywords) ? config.keywords : [];
+  const allKeywords = Array.isArray(config.keywords) ? config.keywords : [];
   const failedKeywords = [];
+
+  // Com a lista de keywords tendo crescido bastante (centenas de termos, para
+  // cobrir muito mais tipos de produto), rodar TODAS numa execução só
+  // estouraria o tempo do workflow. Em vez disso, cada execução varre um
+  // "lote" (batch) diferente da lista inteira, girando pelo runCount — ao
+  // longo de poucas execuções (algumas horas), todos os termos são
+  // pesquisados, sem nunca remover nenhum da lista.
+  const batchSize = Math.max(20, config.keywordBatchSize || allKeywords.length);
+  const numBatches = Math.max(1, Math.ceil(allKeywords.length / batchSize));
+  const batchIndex = runCount % numBatches;
+  const start = batchIndex * batchSize;
+  const keywords = allKeywords.slice(start, start + batchSize);
+  diagnostics.keywordBatch = { index: batchIndex, of: numBatches, size: keywords.length, totalKeywords: allKeywords.length };
+  console.log(`  🧭 Lote de keywords ${batchIndex + 1}/${numBatches} (${keywords.length} de ${allKeywords.length} termos no total)`);
 
   for (const keyword of keywords) {
     try {
@@ -616,15 +642,43 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
   const usedIds = new Set();
   let linkFailures = 0;
 
+  async function tryAdd(p) {
+    const id = String(p.itemId);
+    if (usedIds.has(id)) return false;
+    const affiliateLink = await generateAffiliateLink(p, config);
+    if (!affiliateLink) { linkFailures++; return false; }
+    usedIds.add(id);
+    results.push(normalizeProduct(p, affiliateLink));
+    return true;
+  }
+
+  // Vaga garantida por categoria (categoryQuotas em bot-config.json).
+  // Sem isso, a pontuação por preço sozinha afunda item de ticket maior
+  // (smartphone, notebook, geladeira) atrás de qualquer acessório barato —
+  // era exatamente por isso que "celular" e "notebook" praticamente não
+  // apareciam no catálogo mesmo tendo keywords de busca para eles.
+  const categoryQuotas = config.categoryQuotas || {};
+  diagnostics.categoryQuotaFilled = {};
+  for (const category of Object.keys(categoryQuotas)) {
+    const quota = Math.min(toNumber(categoryQuotas[category]), target - results.length);
+    if (quota <= 0) continue;
+    let filled = 0;
+    for (const pool of [fresh, repeatable]) {
+      for (const { p } of pool) {
+        if (filled >= quota) break;
+        if (inferTag(p.productName) !== category) continue;
+        if (await tryAdd(p)) filled++;
+      }
+      if (filled >= quota) break;
+    }
+    diagnostics.categoryQuotaFilled[category] = filled;
+  }
+
+  // Preenche o restante do alvo pela pontuação geral (fresh antes de repeatable).
   for (const pool of [fresh, repeatable]) {
     for (const { p } of pool) {
       if (results.length >= target) break;
-      const id = String(p.itemId);
-      if (usedIds.has(id)) continue;
-      const affiliateLink = await generateAffiliateLink(p, config);
-      if (!affiliateLink) { linkFailures++; continue; }
-      usedIds.add(id);
-      results.push(normalizeProduct(p, affiliateLink));
+      await tryAdd(p);
     }
     if (results.length >= target) break;
   }
@@ -705,11 +759,13 @@ async function main() {
     includeTopPerforming: true,
     rotateSortType: true,
     pageRotationSpan: 3,
+    keywordBatchSize: 200,
     repeatCooldownRuns: 4,
     minRating: 4.0,
     keywords: [],
     subIds: ['achadosshopeebsf'],
-    trendingCategoryBoost: {}
+    trendingCategoryBoost: {},
+    categoryQuotas: {}
   });
   const fixed = readJson(FIXED_FILE, []);
   const previous = readJson(OUTPUT_FILE, []);
