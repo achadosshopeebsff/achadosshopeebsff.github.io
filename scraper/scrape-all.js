@@ -292,6 +292,18 @@ function isRealPhoneListing(n) {
   );
 }
 
+// Mesma ideia do fix de Smartphones: "notebook"/"laptop" no texto não
+// significa que o produto É o notebook — pode ser mochila, case, suporte,
+// cooler etc. feitos "para notebook".
+function looksLikeNotebookAccessory(n) {
+  return /(mochila|bolsa|maleta|mala|case\b|capa\b|suporte|cooler|refrigerador|almofada|skin|adesivo|luva|pel[ií]cula)[^.]*\b(notebook|laptop)\b|\b(notebook|laptop)\b[^.]*(mochila|bolsa|maleta|mala|case\b|capa\b|suporte|cooler)/i.test(n);
+}
+
+function isRealNotebookListing(n) {
+  if (looksLikeNotebookAccessory(n)) return false;
+  return /notebook|laptop|ultrabook|chromebook/i.test(n);
+}
+
 function inferTag(name) {
   const n = String(name || '').toLowerCase();
 
@@ -317,7 +329,10 @@ function inferTag(name) {
   // Notebooks — separado de "Eletrônicos" (que hoje é dominado por acessórios
   // baratos); ter uma categoria própria é o que permite reservar vagas para
   // notebook de verdade no catálogo (ver categoryQuotas em bot-config.json).
-  if (/notebook|laptop|ultrabook|chromebook/i.test(n)) return 'Notebooks';
+  // MESMA lógica do fix de Smartphones: "notebook" sozinho no texto não basta
+  // — "Mochila para Notebook", "Suporte para Notebook", "Cooler Notebook" são
+  // ACESSÓRIO, não o notebook em si, e não podem tomar a vaga garantida.
+  if (isRealNotebookListing(n)) return 'Notebooks';
 
   // Eletrodomésticos de linha branca — separado de "Cozinha" (que aqui é para
   // utensílios/miudezas). Mesma lógica: categoria própria = vaga garantida.
@@ -339,10 +354,17 @@ function inferTag(name) {
   if (/brinquedo|montessori|reborn|papelaria|caderno/i.test(n)) return 'Brinquedos';
 
   // Eletrônicos e acessórios de tecnologia (inclui capinha/película/case de
-  // celular — chegam aqui porque isRealPhoneListing() já descartou "ser o
+  // celular e mochila/case/suporte/cooler PARA notebook — chegam aqui porque
+  // isRealPhoneListing()/isRealNotebookListing() já descartaram "ser o
   // aparelho em si" lá em cima; sem essa linha, esses itens ficavam sem
-  // categoria nenhuma).
-  if (/fone|bluetooth|tws|watch|rel[oó]gio|nfc|smart|eletr[oô]nico|power ?bank|carregador|cabo usb|ring ?light|projetor|impressora|mouse|teclado|hub usb|drone|r[aá]dio comunicador|c[aâ]mera de seguran[cç]a|capinha|pel[ií]cula|capa (para|de) (celular|iphone|smartphone)|suporte (para|de) (celular|smartphone)/i.test(n)) return 'Eletrônicos';
+  // categoria nenhuma). Note: "mochila"/"case"/"suporte" sozinhos NÃO entram
+  // aqui — só quando looksLikeNotebookAccessory() confirma que é
+  // especificamente "para notebook/laptop" (senão mochila escolar/esportiva
+  // qualquer virava "Eletrônicos" por engano).
+  if (
+    /fone|bluetooth|tws|watch|rel[oó]gio|nfc|smart|eletr[oô]nico|power ?bank|carregador|cabo usb|ring ?light|projetor|impressora|mouse|teclado|hub usb|drone|r[aá]dio comunicador|c[aâ]mera de seguran[cç]a|capinha|pel[ií]cula|capa (para|de) (celular|iphone|smartphone)|suporte (para|de) (celular|smartphone)/i.test(n) ||
+    looksLikeNotebookAccessory(n)
+  ) return 'Eletrônicos';
 
   // Moda
   if (/chinel|t[eê]nis|cal[cç]a|bermuda|\broupa\b|\bmoda\b|vestido|cropped|blazer|coturno|moc[aa]ssim|lingerie|conjunto fitness|moletom|blusa|camiseta|jaqueta|bolsa|bijuteria|[oó]culos de sol|sand[aá]lia/i.test(n)) return 'Moda';
@@ -379,7 +401,13 @@ function scoreProduct(p, config) {
   if (discount >= 60) flashBonus += 10;
   else if (discount >= 40) flashBonus += 5;
 
-  const commissionScore = Math.min(6, commission / 3);
+  // Comissão do afiliado: antes tinha teto de só 6 pontos (quase não pesava
+  // no ranking). Agora pesa de verdade — produto com comissão extra para o
+  // afiliado ganha prioridade real, não só um empurrãozinho simbólico.
+  const commissionScore = Math.min(16, commission * 1.1);
+  let commissionBonus = 0;
+  if (commission >= 20) commissionBonus += 8;
+  else if (commission >= 12) commissionBonus += 4;
 
   // Bônus de "excelente avaliação" (pedido explícito do usuário): nota alta
   // sozinha já pesa em ratingScore, mas aqui reforçamos ainda mais os melhores
@@ -394,13 +422,21 @@ function scoreProduct(p, config) {
   let cheapQualityBonus = 0;
   if (price > 0 && price <= 60 && rating >= 4.5) cheapQualityBonus += 4;
 
+  // Combo "achado perfeito": barato + bem avaliado + comissão extra para o
+  // afiliador, tudo junto — pedido explícito do usuário. É diferente dos
+  // bônus isolados acima: só entra quando as TRÊS coisas se encontram no
+  // mesmo produto, exatamente o tipo de item que compensa mais divulgar.
+  let perfectFindBonus = 0;
+  if (price > 0 && price <= 80 && rating >= 4.5 && commission >= 10) perfectFindBonus += 8;
+
   // Reforço para categorias de maior crescimento projetado até 2027
   // (bot-config.json > trendingCategoryBoost), sem excluir as demais.
   const boostMap = config?.trendingCategoryBoost || {};
   const categoryBoost = toNumber(boostMap[inferTag(p.productName)], 0);
 
   return priceScore + salesScore + ratingScore + discountScore + flashBonus +
-    commissionScore + ratingBonus + cheapQualityBonus + categoryBoost;
+    commissionScore + commissionBonus + ratingBonus + cheapQualityBonus +
+    perfectFindBonus + categoryBoost;
 }
 
 function normalizeProduct(product, affiliateLink) {
