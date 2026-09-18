@@ -27,7 +27,6 @@ const META_FILE = path.join(ROOT, 'sync-meta.json');
 // de verdade, em vez de só comparar com o ciclo imediatamente anterior.
 const HISTORY_FILE = path.join(ROOT, 'product-history.json');
 const ENDPOINT = 'https://open-api.affiliate.shopee.com.br/graphql';
-const RATINGS_ENDPOINT = 'https://shopee.com.br/api/v2/item/get_ratings';
 const REVIEW_CACHE_FILE = path.join(ROOT, 'review-cache.json');
 
 const APP_ID = process.env.SHOPEE_APP_ID;
@@ -530,74 +529,14 @@ function collectReviewVideos(rawRatings) {
   return urls;
 }
 
-async function fetchShopeeRatings(shopId, itemId, config = {}) {
-  if (!shopId || !itemId) return { reviews: [], videos: [], totalCount: 0 };
-  const limit = Math.max(6, Math.min(Number(config.reviewPageSize || 20), 20));
-  const baseHeaders = { 'Accept': 'application/json, text/plain, */*', 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36', 'Referer': `https://shopee.com.br/product/${shopId}/${itemId}`, 'Origin': 'https://shopee.com.br' };
-  async function requestRatings(filter) {
-    const url = new URL(RATINGS_ENDPOINT);
-    url.searchParams.set('filter', String(filter)); url.searchParams.set('flag', '1'); url.searchParams.set('type', '0');
-    url.searchParams.set('limit', String(limit)); url.searchParams.set('offset', '0');
-    url.searchParams.set('shopid', String(shopId)); url.searchParams.set('itemid', String(itemId));
-    const response = await fetch(url, { headers: baseHeaders, signal: AbortSignal.timeout(Number(config.reviewTimeoutMs || 12000)) });
-    const text = await response.text();
-    if (!response.ok) throw new Error(`Ratings HTTP ${response.status}: ${text.slice(0, 250)}`);
-    try { return JSON.parse(text); } catch { throw new Error('Ratings retornou resposta não-JSON.'); }
-  }
-
-  const json = await requestRatings(0);
-  const ratings = Array.isArray(json?.data?.ratings) ? json.data.ratings : [];
-  let videos = collectReviewVideos(ratings);
-  // Se as 20 avaliações mais recentes não trouxerem vídeo, pede a lista de
-  // avaliações com mídia. Assim o scanner tem mais chance de mostrar os
-  // vídeos reais anexados ao produto, sem inventar/baixar conteúdo externo.
-  if (!videos.length) {
-    try {
-      const mediaJson = await requestRatings(3);
-      videos = collectReviewVideos(mediaJson?.data?.ratings || []);
-    } catch { /* vídeo é complementar; não invalida a avaliação real */ }
-  }
-
-  const reviews = [];
-  for (const raw of ratings) {
-    const review = normalizeReview(raw);
-    if (review && !reviews.some((r) => r.ctime === review.ctime && r.author === review.author && r.comment === review.comment)) reviews.push(review);
-    if (reviews.length >= Number(config.maxReviewsPerProduct || 6)) break;
-  }
-  return { reviews, videos, totalCount: Number(json?.data?.item_rating?.rating_total || json?.data?.total_count || 0) };
-}
-
-async function fetchShopeeProductVideos(shopId, itemId, config = {}) {
-  if (!shopId || !itemId) return [];
-  const url = new URL('https://shopee.com.br/api/v4/item/get');
-  url.searchParams.set('shopid', String(shopId)); url.searchParams.set('itemid', String(itemId));
-  const response = await fetch(url, {
-    headers: {
-      'Accept': 'application/json, text/plain, */*',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36',
-      'Referer': `https://shopee.com.br/product/${shopId}/${itemId}`,
-      'Origin': 'https://shopee.com.br'
-    },
-    signal: AbortSignal.timeout(Number(config.reviewTimeoutMs || 12000))
-  });
-  const text = await response.text();
-  if (!response.ok) throw new Error(`Product media HTTP ${response.status}: ${text.slice(0, 180)}`);
-  let json; try { json = JSON.parse(text); } catch { return []; }
-  const list = Array.isArray(json?.data?.video_info_list) ? json.data.video_info_list : [];
-  const urls = [];
-  for (const entry of list) {
-    const candidates = [
-      entry?.default_format?.url,
-      ...(Array.isArray(entry?.formats) ? entry.formats.map((f) => f?.url) : []),
-      entry?.video_id
-    ];
-    for (const value of candidates) {
-      const safe = safeShopeeMediaUrl(value);
-      if (safe && !urls.includes(safe)) urls.push(safe);
-      if (urls.length >= 4) return urls;
-    }
-  }
-  return urls;
+function safeShopeeMediaUrl(value) {
+  const url = String(value || '').trim();
+  if (!/^https?:\/\//i.test(url)) return '';
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (!/(^|\.)shopee\.com(?:\.br)?$|(^|\.)susercontent\.com$/i.test(host)) return '';
+    return url;
+  } catch { return ''; }
 }
 
 function reviewCacheIsFresh(entry, config) {
@@ -605,44 +544,80 @@ function reviewCacheIsFresh(entry, config) {
   return entry && Number(entry.fetchedAtMs) > Date.now() - hours * 3600000;
 }
 
+async function fetchReviewsFromConfiguredProvider(product, config = {}) {
+  const baseUrl = String(process.env.SHOPEE_REVIEW_PROVIDER_URL || '').trim();
+  if (!baseUrl) return null;
+  const url = new URL(baseUrl);
+  url.searchParams.set('shopId', String(product.shopId));
+  url.searchParams.set('itemId', String(product.itemId));
+  const headers = { 'Accept': 'application/json' };
+  if (process.env.SHOPEE_REVIEW_PROVIDER_TOKEN) headers.Authorization = `Bearer ${process.env.SHOPEE_REVIEW_PROVIDER_TOKEN}`;
+  const response = await fetch(url, { headers, signal: AbortSignal.timeout(Number(config.reviewTimeoutMs || 12000)) });
+  const raw = await response.text();
+  if (!response.ok) throw new Error(`Review provider HTTP ${response.status}: ${raw.slice(0, 180)}`);
+  let data; try { data = JSON.parse(raw); } catch { throw new Error('Review provider retornou JSON inválido.'); }
+  return {
+    reviews: Array.isArray(data?.reviews) ? data.reviews : [],
+    reviewVideos: Array.isArray(data?.reviewVideos) ? data.reviewVideos.filter(safeShopeeMediaUrl) : [],
+    productVideos: Array.isArray(data?.productVideos) ? data.productVideos.filter(safeShopeeMediaUrl) : [],
+    totalCount: Number(data?.totalCount || 0)
+  };
+}
+
+// A Affiliate Open API oficial fornece dados de produto/comissão, mas não a lista
+// individual de comentários. Os endpoints internos de ratings da página Shopee
+// são protegidos pelo anti-bot (90309999). Portanto o bot NÃO os chama mais.
+// Ele usa apenas reviews previamente armazenadas por uma fonte autorizada,
+// ou um provider externo explicitamente configurado por Secrets.
 async function enrichOutputWithRealReviews(output, config, runCount, diagnostics) {
   const cache = readJson(REVIEW_CACHE_FILE, {});
-  const perRun = Math.max(0, Math.min(Number(config.reviewEnrichmentPerRun || 40), output.length));
-  const candidates = [];
+  const providerConfigured = Boolean(String(process.env.SHOPEE_REVIEW_PROVIDER_URL || '').trim());
+  diagnostics.reviewProviderConfigured = providerConfigured;
+  diagnostics.reviewCandidates = 0;
+  diagnostics.reviewFetched = 0;
+  diagnostics.reviewErrors = 0;
+
   for (let i = 0; i < output.length; i++) {
-    const index = (runCount * Math.max(1, perRun) + i) % output.length;
-    const p = output[index]; if (!p?.shopId || !p?.itemId) continue;
+    const p = output[i];
+    if (!p?.itemId) continue;
     const cached = cache[String(p.itemId)];
-    if (reviewCacheIsFresh(cached, config)) {
-      output[index] = { ...p,
+    if (cached && Array.isArray(cached.reviews)) {
+      output[i] = { ...p,
         reviews: cached.reviews || [],
-        reviewVideos: cached.reviewVideos || [],
-        productVideos: cached.productVideos || [],
-        reviewSource: 'Shopee', reviewFetchedAt: cached.fetchedAt || '', reviewCount: cached.totalCount || 0
+        reviewVideos: (cached.reviewVideos || []).filter(safeShopeeMediaUrl),
+        productVideos: (cached.productVideos || []).filter(safeShopeeMediaUrl),
+        reviewSource: 'Shopee-authorized', reviewFetchedAt: cached.fetchedAt || '', reviewCount: cached.totalCount || 0
       };
-    } else if (candidates.length < perRun) {
-      candidates.push({ index, p });
     }
   }
-  diagnostics.reviewCandidates = candidates.length; diagnostics.reviewFetched = 0; diagnostics.reviewErrors = 0;
-  for (const { index, p } of candidates) {
-    try {
-      const ratings = await fetchShopeeRatings(p.shopId, p.itemId, config);
-      let productVideos = [];
-      try { productVideos = await fetchShopeeProductVideos(p.shopId, p.itemId, config); }
-      catch { /* vídeo de vitrine é complementar; review real continua válida */ }
-      const fetchedAt = new Date().toISOString();
-      cache[String(p.itemId)] = { fetchedAt, fetchedAtMs: Date.now(), reviews: ratings.reviews, reviewVideos: ratings.videos, productVideos, totalCount: ratings.totalCount };
-      output[index] = { ...p, reviews: ratings.reviews, reviewVideos: ratings.videos, productVideos, reviewSource: 'Shopee', reviewFetchedAt: fetchedAt, reviewCount: ratings.totalCount };
-      diagnostics.reviewFetched++;
-    } catch (error) {
-      diagnostics.reviewErrors++; diagnostics.errors.push(`reviews ${p.itemId}: ${error?.message || 'erro desconhecido'}`);
+
+  if (providerConfigured && output.length) {
+    const perRun = Math.max(0, Math.min(Number(config.reviewEnrichmentPerRun || 12), output.length));
+    const candidates = [];
+    for (let i = 0; i < output.length && candidates.length < perRun; i++) {
+      const p = output[(runCount + i) % output.length];
+      if (!p?.shopId || !p?.itemId) continue;
       const cached = cache[String(p.itemId)];
-      if (cached) output[index] = { ...p, reviews: cached.reviews || [], reviewVideos: cached.reviewVideos || [], productVideos: cached.productVideos || [], reviewSource: 'Shopee', reviewFetchedAt: cached.fetchedAt || '', reviewCount: cached.totalCount || 0 };
+      if (!reviewCacheIsFresh(cached, config)) candidates.push({ index: (runCount + i) % output.length, p });
     }
-    await sleep(Math.max(450, Number(config.reviewRequestDelayMs || 650)));
+    diagnostics.reviewCandidates = candidates.length;
+    for (const { index, p } of candidates) {
+      try {
+        const reviews = await fetchReviewsFromConfiguredProvider(p, config);
+        const fetchedAt = new Date().toISOString();
+        cache[String(p.itemId)] = { fetchedAt, fetchedAtMs: Date.now(), ...reviews };
+        output[index] = { ...p, reviews: reviews.reviews, reviewVideos: reviews.reviewVideos, productVideos: reviews.productVideos, reviewSource: 'Shopee-authorized', reviewFetchedAt: fetchedAt, reviewCount: reviews.totalCount };
+        diagnostics.reviewFetched++;
+      } catch (error) {
+        diagnostics.reviewErrors++;
+        diagnostics.errors.push(`review-provider ${p.itemId}: ${error?.message || 'erro desconhecido'}`);
+      }
+      await sleep(Math.max(250, Number(config.reviewRequestDelayMs || 650)));
+    }
   }
-  const keepMs = Math.max(24, Number(config.reviewCacheKeepDays || 14)) * 86400000; const pruned = {};
+
+  const keepMs = Math.max(24, Number(config.reviewCacheKeepDays || 14)) * 86400000;
+  const pruned = {};
   for (const [key, value] of Object.entries(cache)) if (Number(value?.fetchedAtMs) > Date.now() - keepMs) pruned[key] = value;
   writeJson(REVIEW_CACHE_FILE, pruned);
   diagnostics.reviewReadyProducts = output.filter((p) => Array.isArray(p?.reviews) && p.reviews.length).length;
@@ -1426,7 +1401,8 @@ async function main() {
     maxReviewsPerProduct: 6,
     reviewTimeoutMs: 12000,
     reviewRequestDelayMs: 650,
-    reviewCacheKeepDays: 14
+    reviewCacheKeepDays: 14,
+    reviewProviderConfigured: false
   });
   const fixed = readJson(FIXED_FILE, []);
   const previous = readJson(OUTPUT_FILE, []);
@@ -1442,6 +1418,10 @@ async function main() {
   console.log(`🔄 Depois, catálogo dinâmico: até ${config.maxProducts || 50} produtos`);
   console.log(`⏱️ Atualização programada: a cada ${config.refreshIntervalMinutes || 30} minutos`);
   console.log(`🔁 Execução nº ${runCount} · sortType desta rodada: ${pickSortType(config, runCount)}`);
+
+  if (!String(process.env.SHOPEE_REVIEW_PROVIDER_URL || '').trim()) {
+    console.log('ℹ️ Reviews individuais: nenhum provider autorizado configurado; o bot não acessará endpoints internos protegidos da Shopee.');
+  }
 
   const diagnostics = {
     apiOk: true,
@@ -1464,6 +1444,7 @@ async function main() {
     reviewErrors: 0,
     reviewReadyProducts: 0,
     reviewVideoProducts: 0,
+    reviewProviderConfigured: false,
     errors: []
   };
 
