@@ -15,6 +15,24 @@
   "repeatCooldownRuns": 4,
   "_repeatCooldownRunsNote": "um produto so pode ser republicado depois de 4 execucoes (~2h com o intervalo de 30min) - usa o historico persistente em product-history.json, nao so o ciclo anterior",
   "minRating": 4.0,
+  "commissionQuotas": {
+    "10-19.99": 75,
+    "20-29.99": 20,
+    "30+": 5
+  },
+  "maxCommissionShare": 0.25,
+  "highCommissionKeywords": [
+    "ofertas",
+    "promocao",
+    "moda",
+    "beleza",
+    "casa",
+    "cozinha",
+    "eletronicos",
+    "fitness"
+  ],
+  "highCommissionLimitPerKeyword": 30,
+  "_commissionQuotasNote": "Reserva mínima de vagas para comissões elevadas; o catálogo limita a participação total de produtos com comissão >=10% a 25% (quando houver candidatos suficientes).",
   "subIds": [
     "achadosshopeebsf",
     "auto",

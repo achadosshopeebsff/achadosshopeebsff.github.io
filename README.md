@@ -1,17 +1,26 @@
 # achadosshopeebsf — catálogo automático de achadinhos Shopee
 
+## Busca no catálogo e regra anti-repetição
+
+O site possui uma busca instantânea no catálogo publicado. A pesquisa é feita no navegador sobre os produtos presentes em `products.json`, procurando por nome, descrição, categoria e loja. O `App Secret` permanece exclusivamente no GitHub Actions e nunca é enviado ao navegador.
+
+Na seleção automática do catálogo, produtos com o mesmo `itemId` nunca são duplicados. Para itens equivalentes anunciados por lojas diferentes, o bot usa uma comparação conservadora de título e mantém a oferta mais barata quando os preços podem ser comparados. Variações com medidas/modelos diferentes continuam separadas porque números e medidas permanecem na assinatura de identidade.
+
+Também existe uma reserva parcial de vagas para produtos com comissão de 10–19,99%, 20–29,99% e 30% ou mais. Essas faixas não dominam o catálogo: antes de entrar, os produtos continuam passando pelos filtros de qualidade e disputando espaço com preço, avaliação, vendas e desconto.
+
+
 O projeto usa a **Shopee Affiliate Open API (Brasil)** com duas fases:
 
 1. **Catálogo inicial:** os 20 produtos fornecidos no `fixed-products.json` ficam publicados desde o primeiro acesso para o site nunca começar vazio.
-2. **Catálogo automático:** após uma sincronização válida, o bot consulta `productOfferV2` por palavras-chave e também uma lista `top-performing`, ranqueia os melhores produtos e publica **até 90 itens a cada ciclo** (`maxProducts` em `bot-config.json` — pode ser aumentado ainda mais, o pool de candidatos costuma passar de 4.000 produtos únicos por rodada). Os produtos dinâmicos usam o `offerLink` afiliado retornado pela API — que já carrega o tracking da sua conta (ligada ao `SHOPEE_APP_ID`/`SHOPEE_APP_SECRET`); se esse campo vier vazio, o bot tenta `generateShortLink` com o `productLink` e os `subIds` configurados, para manter o rastreio de origem. **Garantia:** um produto sem link de afiliado válido (nem `offerLink` nem `generateShortLink` bem-sucedido) é descartado e **nunca** é publicado no site — ver `generateAffiliateLink()` e o `if (!affiliateLink) { linkFailures++; continue; }` em `buildDynamicCatalog()` no `scrape-all.js`. Ou seja: todo produto que aparece no site sempre carrega seu link de afiliado.
+2. **Catálogo automático:** após uma sincronização válida, o bot consulta `productOfferV2` por palavras-chave e também uma lista `top-performing`, ranqueia os melhores produtos e publica **até 500 itens a cada ciclo** (`maxProducts` em `bot-config.json`). Os produtos dinâmicos usam o `offerLink` afiliado retornado pela API — que já carrega o tracking da sua conta (ligada ao `SHOPEE_APP_ID`/`SHOPEE_APP_SECRET`); se esse campo vier vazio, o bot tenta `generateShortLink` com o `productLink` e os `subIds` configurados, para manter o rastreio de origem. **Garantia:** um produto sem link de afiliado válido (nem `offerLink` nem `generateShortLink` bem-sucedido) é descartado e **nunca** é publicado no site — ver `generateAffiliateLink()` e o `if (!affiliateLink) { linkFailures++; continue; }` em `buildDynamicCatalog()` no `scrape-all.js`. Ou seja: todo produto que aparece no site sempre carrega seu link de afiliado.
 3. **Rotação de ordenação e de página:** a cada execução o bot alterna o `sortType` da busca (mais vendidos → maior comissão → relevância → menor preço, controlado por `rotateSortType`) **e** a página inicial de cada keyword (1 → 2 → 3 → 1…, controlado por `pageRotationSpan`). Sozinho, girar só o `sortType` ainda pedia sempre a página 1, que a Shopee devolve quase idêntica de execução em execução — girar as duas coisas juntas dá 12 combinações diferentes por palavra-chave (~6h) antes de repetir a mesma busca exata. O número da execução fica salvo em `sync-meta.json` (`runCount`).
 4. **Sem repetição entre ciclos — histórico persistente com "descanso" (cooldown):** o bot mantém `product-history.json`, commitado a cada execução, com a data/execução em que cada produto foi publicado pela última vez. Um produto só pode voltar a ser publicado depois de `repeatCooldownRuns` execuções (padrão 4 = ~2h). Isso é diferente de só comparar com o `products.json` do ciclo anterior: antes, um produto podia sumir por 1 ciclo e "parecer novo" de novo no ciclo seguinte — era exatamente esse o bug do "na 3ª vez repete os produtos da 1ª vez". Com o histórico persistente isso não acontece mais, mesmo que o produto tenha desaparecido do catálogo publicado no meio do caminho. Fica registrado em `diagnostics.repeatPublished`/`diagnostics.historyEntries` no `sync-meta.json`.
 5. **Qualidade e preço:** produtos com avaliação informada abaixo de `minRating` (padrão 4.0) são descartados; a pontuação usa escala logarítmica de preço (favorece achados baratos sem excluir itens de ticket maior, como smartphones, se tiverem boa nota/vendas) e dá mais peso à avaliação. Inclui categoria "Smartphones" com keywords dedicadas (`smartphone`, `smartphone barato`, `celular android`, `celular 5g barato`, `smartphone entrada`).
 6. **Erros transitórios da Shopee (`[10000]`/`[10030]`) agora têm nova tentativa automática** (com espera crescente) antes de desistir de uma palavra-chave — a própria Shopee documenta que o erro `10000` "costuma se resolver sozinho", e a forma de resolver sozinho é tentar de novo.
 
-## Categorias e keywords (atualizado ago/2026, foco 2026 → 2027)
+## Categorias e keywords (atualizado em setembro/2026)
 
-O `bot-config.json` traz **132 keywords** organizadas pelas 10 categorias de maior consumo/GMV na Shopee Brasil (relatório de tendências fornecido pelo dono do site), para o bot buscar sempre esses produtos:
+O `bot-config.json` traz **861 keywords** organizadas pelas 10 categorias de maior consumo/GMV na Shopee Brasil (relatório de tendências fornecido pelo dono do site), para o bot buscar sempre esses produtos:
 
 1. **Tecnologia e eletrônicos** — fones TWS, power bank, capinhas/películas, smartwatch, caixa de som, projetor, notebook, drone, câmeras de segurança, smartphones, etc.
 2. **Casa, decoração e organização** (categoria nº1 em GMV) — papel de parede adesivo, luminárias, organizadores, tapetes, lençóis, cortinas blackout, umidificador, etc.
@@ -30,7 +39,7 @@ Para ajustar a lista de produtos buscados no futuro, edite o array `keywords` em
 
 ## Atualização
 
-- GitHub Actions: **a cada 30 minutos** (`00` e `30` de cada hora, UTC).
+- GitHub Actions: **a cada 30 minutos** (`:07` e `:37` de cada hora, UTC, para evitar o pico de fila).
 - Também roda em `push` relevante e pode ser acionado manualmente.
 - `sync-meta.json` registra a última conclusão e calcula a próxima atualização para o contador do site.
 - O navegador verifica `products.json`/`sync-meta.json` a cada 20s (sem chamar a Shopee diretamente) e reinicia o relógio de contagem regressiva sempre que lê um `nextUpdateAt` válido.
