@@ -265,6 +265,47 @@ function commissionPct(value) {
   return n > 1 ? n : n * 100;
 }
 
+
+function normalizedShopTypes(value) {
+  if (Array.isArray(value)) return value.map((v) => Number(v)).filter(Number.isFinite);
+  if (value === null || value === undefined || value === '') return [];
+  const n = Number(value);
+  return Number.isFinite(n) ? [n] : [];
+}
+
+function shopNameLooksInternational(shopName, config) {
+  const name = normalizeDedupeText(shopName);
+  const blocked = Array.isArray(config?.blockedInternationalShopNamePatterns)
+    ? config.blockedInternationalShopNamePatterns
+    : [];
+  return blocked.some((pattern) => {
+    const token = normalizeDedupeText(pattern);
+    return token && name.includes(token);
+  });
+}
+
+function isBrazilMarketplaceOffer(product, config) {
+  const link = String(product?.productLink || '');
+  if (!/^https?:\/\/(?:www\.)?shopee\.com\.br\//i.test(link)) return false;
+
+  const allowed = new Set(
+    (Array.isArray(config?.allowedShopTypes) ? config.allowedShopTypes : [1, 2, 4])
+      .map(Number)
+      .filter(Number.isFinite)
+  );
+  const shopTypes = normalizedShopTypes(product?.shopType);
+  if (!shopTypes.length) return config?.allowUnknownShopType === true;
+  if (!shopTypes.some((type) => allowed.has(type))) return false;
+  if (shopNameLooksInternational(product?.shopName, config)) return false;
+  return true;
+}
+
+function catalogMinPrice(product) {
+  // Usa o MENOR preço da oferta para impedir que uma variação abaixo de R$10
+  // passe no catálogo apenas porque outra variação é mais cara.
+  return toNumber(product?.priceMin || product?.priceMax);
+}
+
 // Categorias de maior consumo Shopee Brasil (relatório 2026 -> projeção 2027).
 // Ordem importa: padrões mais específicos primeiro para evitar falso-positivo
 // (ex.: "capa de chuva" não pode cair em Moda por causa de "capa").
@@ -429,14 +470,24 @@ function scoreProduct(p, config) {
   let perfectFindBonus = 0;
   if (price > 0 && price <= 80 && rating >= 4.5 && commission >= 10) perfectFindBonus += 8;
 
+  // Bônus pequeno para produtos ligados às sementes virais. A tendência nunca
+  // supera o piso de preço/nota/loja, pois esses filtros acontecem antes do ranking.
+  const normalizedTitle = normalizeDedupeText(p.productName);
+  const viralKeywords = Array.isArray(config?.viralKeywords) ? config.viralKeywords : [];
+  const viralHit = viralKeywords.some((keyword) => {
+    const normalizedKeyword = normalizeDedupeText(keyword);
+    return normalizedKeyword && normalizedTitle.includes(normalizedKeyword);
+  });
+  const viralBonus = viralHit ? Math.max(0, toNumber(config?.viralBonus, 10)) : 0;
+
   // Reforço para categorias de maior crescimento projetado até 2027
   // (bot-config.json > trendingCategoryBoost), sem excluir as demais.
-  const boostMap = config?.trendingCategoryBoost || {};
+  const boostMap = { ...(config?.trendingCategoryBoost || {}), ...(config?.viralCategoriesBoost || {}) };
   const categoryBoost = toNumber(boostMap[inferTag(p.productName)], 0);
 
   return priceScore + salesScore + ratingScore + discountScore + flashBonus +
     commissionScore + commissionBonus + ratingBonus + cheapQualityBonus +
-    perfectFindBonus + categoryBoost;
+    perfectFindBonus + viralBonus + categoryBoost;
 }
 
 function normalizeProduct(product, affiliateLink) {
@@ -465,6 +516,8 @@ function normalizeProduct(product, affiliateLink) {
     commission: product.commission || '',
     shopName: product.shopName || '',
     shopId: String(product.shopId || ''),
+    shopType: normalizedShopTypes(product.shopType),
+    marketplace: 'BR',
     itemId: String(product.itemId),
     productLink: product.productLink || '',
     affLink: affiliateLink || product.offerLink || '',
@@ -475,12 +528,16 @@ function normalizeProduct(product, affiliateLink) {
   };
 }
 
-function fixedAsFallback(fixed) {
-  // Garantia "sem exceção": mesmo neste fallback de emergência (só usado se a
-  // API falhar por completo e ainda não existir nenhum catálogo anterior),
-  // um item sem link de afiliado real nunca é publicado.
+function fixedAsFallback(fixed, config = {}) {
+  // Fallback também respeita o piso de R$10 e bloqueia lojas com nome claramente
+  // internacional. A avaliação, quando ausente no seed fixo, não é inventada.
   return fixed
     .filter((p) => !!p.offerLink)
+    .filter((p) => parsePrice(p?.price) >= Number(config.minPrice || 10))
+    .filter((p) => {
+      const name = p?.shopName || '';
+      return !shopNameLooksInternational(name, config);
+    })
     .map((p) => ({
     id: String(p.itemId),
     title: p.itemName,
@@ -639,6 +696,19 @@ async function collectDynamicProducts(config, diagnostics, runCount) {
     }
   }
 
+  // Coleta complementar de produtos virais em TODAS as rodadas. Não é um
+  // ranking oficial do TikTok; são termos de tendência usados como sementes de
+  // descoberta e os resultados ainda precisam passar pelas regras de qualidade.
+  try {
+    const viralNodes = await collectViralProducts(config, diagnostics);
+    for (const node of viralNodes) {
+      const id = String(node.itemId || '');
+      if (id) map.set(id, node);
+    }
+  } catch (error) {
+    diagnostics.errors.push(`viral: ${explainShopeeError(error)}`);
+  }
+
   // Coleta complementar de alta comissão em TODAS as rodadas, independente
   // do sortType rotativo principal. O resultado ainda passa por qualidade,
   // deduplicação e pelo limite máximo de participação de comissão no catálogo.
@@ -669,6 +739,34 @@ async function collectDynamicProducts(config, diagnostics, runCount) {
   }
 
   return [...map.values()];
+}
+
+
+async function collectViralProducts(config, diagnostics) {
+  const all = Array.isArray(config?.viralKeywords) ? config.viralKeywords.filter(Boolean) : [];
+  const count = Math.max(1, Math.min(Number(config?.viralKeywordsPerRun || 28), all.length || 1));
+  const offset = Number(diagnostics?.runCount || 0) % Math.max(1, all.length);
+  const keywords = all.length ? Array.from({ length: Math.min(count, all.length) }, (_, i) => all[(offset + i) % all.length]) : [];
+  const limit = Math.max(1, Math.min(Number(config?.viralLimitPerKeyword || 50), 50));
+  const nodes = [];
+  diagnostics.viralQueries = 0;
+  diagnostics.viralCandidates = 0;
+  for (const keyword of keywords) {
+    try {
+      const data = await withRateLimitRetry(
+        () => graphql(buildSearchQuery({ keyword, sortType: 2, page: 1, limit })),
+        { retries: 2, baseDelayMs: 900 }
+      );
+      const found = data?.productOfferV2?.nodes || [];
+      diagnostics.viralQueries++;
+      diagnostics.viralCandidates += found.length;
+      nodes.push(...found);
+    } catch (error) {
+      diagnostics.errors.push(`viral "${keyword}": ${explainShopeeError(error)}`);
+    }
+    await sleep(API_CALL_DELAY_MS);
+  }
+  return nodes;
 }
 
 
@@ -870,15 +968,22 @@ function dedupeEquivalentProducts(products, diagnostics) {
   return kept;
 }
 
-// Nota mínima quando a Shopee informa avaliação — "produto de qualidade" pedido
-// pelo usuário. Itens sem avaliação (rating 0/ausente) não são descartados só
-// por isso, mas perdem pontos no ranqueamento (ver scoreProduct).
-const MIN_RATING = 4.0;
+// Regras de entrada do catálogo: preço mínimo, avaliação e loja elegível.
+// A prioridade é qualidade + preço real do produto, não apenas comissão.
+const MIN_PRICE = 10;
+const MIN_RATING = 4.5;
 
 function passesQualityBar(p, config) {
+  const minPrice = Math.max(0, toNumber(config?.minPrice ?? MIN_PRICE));
+  const price = catalogMinPrice(p);
+  if (!(price >= minPrice)) return false;
+
   const rating = ratingNumber(p.ratingStar);
-  const minRating = config.minRating ?? MIN_RATING;
+  const minRating = toNumber(config?.minRating ?? MIN_RATING);
+  if (config?.requireRating !== false && !(rating > 0)) return false;
   if (rating > 0 && rating < minRating) return false;
+
+  if (!isBrazilMarketplaceOffer(p, config)) return false;
   return true;
 }
 
@@ -1103,7 +1208,18 @@ async function main() {
     pageRotationSpan: 3,
     keywordBatchSize: 200,
     repeatCooldownRuns: 4,
-    minRating: 4.0,
+    minPrice: 10,
+    minRating: 4.5,
+    requireRating: true,
+    allowedShopTypes: [1, 2, 4],
+    allowUnknownShopType: false,
+    allowLegacyPreviousWithoutShopType: true,
+    blockedInternationalShopNamePatterns: ['international','importadora','importado','imports','china','japao','japão','usa','united','global','world','mundo mix','temu','aliexpress','shein','shop global','overseas'],
+    viralKeywords: [],
+    viralKeywordsPerRun: 28,
+    viralLimitPerKeyword: 50,
+    viralBonus: 10,
+    viralCategoriesBoost: {},
     commissionQuotas: { '10-19.99': 75, '20-29.99': 20, '30+': 5 },
     maxCommissionShare: 0.25,
     highCommissionKeywords: ['ofertas', 'promocao', 'moda', 'beleza', 'casa', 'cozinha', 'eletronicos', 'fitness'],
@@ -1130,6 +1246,7 @@ async function main() {
 
   const diagnostics = {
     apiOk: true,
+    runCount,
     keywordCounts: {},
     topPerformingCount: 0,
     candidatesRaw: 0,
@@ -1191,15 +1308,30 @@ async function main() {
     source = 'api-dynamic-partial';
     console.warn(`⚠️ Só ${dynamic.length}/${target} produtos dinâmicos válidos (abaixo do mínimo de ${minDynamic}); publicando mesmo assim, 100% novos, sem completar com itens antigos.`);
   } else if (Array.isArray(previous) && previous.length > 0) {
-    // Falha total nesta rodada específica (ex.: instabilidade da Shopee):
-    // mantém o catálogo anterior INTEIRO, sem misturar pedaços — assim que a
-    // próxima rodada trouxer resultado, ele substitui tudo de novo.
-    output = previous;
-    source = previousIsDynamic ? 'previous-dynamic' : 'previous-fallback';
-    console.warn('⚠️ Nenhum produto dinâmico válido nesta rodada; mantendo catálogo anterior por completo até a próxima tentativa.');
+    // Falha total nesta rodada específica: mantém somente itens do catálogo
+    // anterior que ainda obedecem às regras públicas de preço/nota/loja.
+    const safePrevious = previous.filter((p) => {
+      const price = parsePrice(p?.now);
+      const rating = ratingNumber(p?.rating);
+      const shopTypes = normalizedShopTypes(p?.shopType);
+      const allowed = new Set((config.allowedShopTypes || [1,2,4]).map(Number));
+      const linkOk = /^https?:\/\/(?:www\.)?shopee\.com\.br\//i.test(String(p?.productLink || ''));
+      // Dados publicados antes desta versão podem não ter trazido shopType.
+      // Como eles vieram do endpoint BR e já passaram pela limpeza local,
+      // permitimos a proveniência legada para evitar catálogo vazio numa
+      // falha temporária da API. Novos candidatos continuam exigindo shopType.
+      const shopOk = shopTypes.length
+        ? shopTypes.some((t) => allowed.has(t))
+        : (config.allowLegacyPreviousWithoutShopType === true && p?.marketplace === 'BR');
+      const ratingOk = rating >= Number(config.minRating || 4.5);
+      return price >= Number(config.minPrice || 10) && ratingOk && linkOk && shopOk && !shopNameLooksInternational(p?.shopName, config);
+    });
+    output = safePrevious;
+    source = previousIsDynamic ? 'previous-dynamic-filtered' : 'previous-fallback-filtered';
+    console.warn(`⚠️ Nenhum produto dinâmico válido nesta rodada; mantendo ${safePrevious.length} item(ns) anterior(es) que ainda obedecem aos filtros.`);
   } else {
     const uniqueFixed = dedupeEquivalentProducts(fixed, diagnostics);
-    output = fixedAsFallback(uniqueFixed).map((p) => ({ ...p, source: 'fixed-fallback' }));
+    output = fixedAsFallback(uniqueFixed, config).map((p) => ({ ...p, source: 'fixed-fallback' }));
     source = 'fixed-fallback';
     console.warn('⚠️ Primeira execução sem retorno suficiente da API; publicando catálogo inicial fixo (temporário, até a próxima rodada trazer produtos reais).');
   }
