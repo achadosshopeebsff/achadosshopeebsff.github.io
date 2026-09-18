@@ -105,3 +105,15 @@ Referência: Explorer oficial da Shopee Affiliate Open API.
 - Tendências: keywords dedicadas para produtos virais de vídeo/comércio (Kemei 3 em 1, fone invisível Q10, mini impressora térmica, mini seladora, kits de café da manhã, moda viral, utilidades, beleza e acessórios). Esses termos só descobrem candidatos; o filtro de qualidade continua valendo.
 - Comissão: continuam sendo reservadas vagas para 10%–19,99%, 20%–29,99% e 30%+, sem deixar comissão superar a qualidade do produto.
 - Repetição: o mesmo `itemId` não repete; ofertas equivalentes de lojas diferentes competem por preço, e a mais barata é a única publicada quando a equivalência é confirmada.
+
+
+## Novos filtros e experiência do scanner (v3.1)
+
+- Produtos dinâmicos com preço mínimo de R$ 10,00 e avaliação mínima de 4,5.
+- Bloco obrigatório de descoberta para produtos de cabelo liso/alisamento (escova alisadora, prancha, chapinha, pente alisador e similares).
+- Busca contínua por produtos virais e termos de tendência, sempre subordinada aos filtros de qualidade, preço, loja e repetição.
+- Ao escanear, o site pode mostrar pequenas notificações com comentários reais retornados pela área de avaliações da Shopee, sem fabricar nomes ou textos. Autores anônimos continuam anônimos.
+- Vídeos do próprio produto e vídeos anexados às avaliações podem aparecer atrás do scanner; o navegador os reproduz sempre sem áudio (`muted`, `volume=0`, `playsInline`).
+- Avaliações e vídeos são armazenados em `review-cache.json` e renovados de forma rotativa para evitar excesso de requisições.
+
+> Observação: a Affiliate Open API fornece os dados do catálogo, mas os detalhes públicos de avaliações/vídeos são obtidos separadamente dos endpoints públicos da Shopee. O funcionamento desses endpoints pode mudar por decisão da plataforma.

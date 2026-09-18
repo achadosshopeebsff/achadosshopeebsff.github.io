@@ -55,6 +55,15 @@
     .grad{color:var(--primary)}
     .sub{max-width:600px;margin:0 auto 42px;color:var(--muted);font-size:clamp(15px,2vw,17px);line-height:1.65}
     .scanner{width:min(224px,68vw);aspect-ratio:1;margin:0 auto 24px;position:relative;display:grid;place-items:center}
+    .scan-media-wall{position:absolute;inset:-42px;z-index:0;pointer-events:none;opacity:0;transition:opacity .35s ease;overflow:hidden;border-radius:48px}
+    .scanning .scan-media-wall,.scanner.has-scan-media .scan-media-wall{opacity:.22}
+    .scan-media-tile{position:absolute;width:78px;height:112px;border-radius:18px;overflow:hidden;filter:saturate(.9) blur(.15px);box-shadow:0 12px 32px rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.16);background:#171313;will-change:transform,opacity}
+    .scan-media-tile:nth-child(1){left:0;top:14%;transform:rotate(-7deg)}
+    .scan-media-tile:nth-child(2){right:0;top:3%;transform:rotate(8deg)}
+    .scan-media-tile:nth-child(3){left:12%;bottom:-3%;transform:rotate(5deg)}
+    .scan-media-tile:nth-child(4){right:12%;bottom:3%;transform:rotate(-6deg)}
+    .scan-media-tile video{width:100%;height:100%;object-fit:cover;opacity:.88}
+    .scan-media-shade{position:absolute;inset:0;background:radial-gradient(circle,rgba(16,7,8,.05),rgba(16,7,8,.75));backdrop-filter:blur(1px)}
     .ring{position:absolute;inset:0;border-radius:50%;background:conic-gradient(var(--secondary),var(--primary),var(--accent),var(--secondary))}
     .ring::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--bg)}
     .scan-btn{
@@ -75,7 +84,19 @@
     .next-update-label{font:700 9px "JetBrains Mono",monospace;color:var(--muted);letter-spacing:.08em}
     .next-update strong{font:800 18px "JetBrains Mono",monospace;color:var(--accent);min-width:62px}
     .next-update-sub{width:100%;font-size:11px;color:var(--muted)}
-    .reveal-stage{width:min(620px,100%);margin:12px auto 0}
+    .reveal-stage{width:min(620px,100%);margin:12px auto 0;position:relative}
+    .review-feed{position:absolute;inset:0;pointer-events:none;z-index:30;overflow:hidden;border-radius:26px}
+    .review-toast{position:absolute;right:clamp(8px,2vw,18px);width:min(340px,calc(100% - 16px));padding:10px 12px;border-radius:16px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14);box-shadow:0 12px 32px rgba(0,0,0,.26),inset 0 1px 0 rgba(255,255,255,.08);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);opacity:0;transform:translate3d(26px,0,0) scale(.97);animation:reviewToastIn .42s cubic-bezier(.2,.8,.2,1) forwards,reviewToastOut .55s ease-in forwards;animation-delay:0s,4.4s}
+    .review-toast-head{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+    .review-avatar{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;background:rgba(252,95,2,.28);color:#fff;font:800 10px "JetBrains Mono",monospace;border:1px solid rgba(255,255,255,.16)}
+    .review-meta{min-width:0;display:flex;flex-direction:column;gap:1px}
+    .review-brand{font:800 8px/1.1 "JetBrains Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);opacity:.95}
+    .review-user{font:700 10px/1.1 "Inter",sans-serif;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .review-stars{margin-left:auto;color:var(--accent);font-size:10px;white-space:nowrap}
+    .review-comment{margin:0;color:rgba(255,255,255,.84);font-size:11px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+    .review-source{margin-top:5px;color:rgba(255,255,255,.46);font:500 8px "JetBrains Mono",monospace}
+    @keyframes reviewToastIn{to{opacity:1;transform:translate3d(0,0,0) scale(1)}}
+    @keyframes reviewToastOut{to{opacity:0;transform:translate3d(24px,-8px,0) scale(.96)}}
     .card{
       opacity:0;transform:translateY(10px);transition:opacity .22s ease,transform .22s ease;
       overflow:hidden;border-radius:26px
@@ -141,6 +162,10 @@
     .credit{margin-top:14px;color:var(--muted);font:700 12px "Space Grotesk",sans-serif}
     @media (max-width:640px){
       .catalog-policy{display:none}
+      .review-toast{width:min(300px,calc(100% - 12px));right:6px}
+      .scan-media-wall{inset:-30px}
+      .scan-media-tile{width:64px;height:92px}
+
       .top{top:6px}.hero{padding-top:30px}
       .glass{box-shadow:0 8px 22px rgba(0,0,0,.25)}
       .thumb{flex-basis:72px;width:72px;height:72px}.card-top{gap:12px}
@@ -159,7 +184,8 @@
       .nav-links a{padding:7px 8px}
     }
     @media (prefers-reduced-motion:reduce){
-      html{scroll-behavior:auto}.scanning .ring{animation:none}.card{transition:none}.scan-btn:hover,.scan-btn:active{transform:none}
+      html{scroll-behavior:auto}.scanning .ring{animation:none}.card{transition:none}.scan-btn:hover,.scan-btn:active{transform:none}.review-toast{animation:none;opacity:1;transform:none}
+      .scan-media-wall{opacity:.12!important}
     }
     @media (pointer:coarse){
       .nav-links a,.cta,.again,.scan-btn{min-height:44px}.nav-links a{display:grid;place-items:center}
@@ -190,6 +216,7 @@
       <p class="sub">Produtos selecionados automaticamente da Shopee com foto, preço e link de afiliado atualizado.</p>
 
       <div class="scanner" id="scanner" aria-hidden="true">
+        <div class="scan-media-wall" id="scanMediaWall" aria-hidden="true"></div>
         <div class="ring"></div>
         <button class="scan-btn" id="scanBtn" type="button" aria-label="Escanear e revelar um achado" aria-controls="productCard">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>
@@ -228,6 +255,7 @@
           </div>
         </article>
         <button class="again" id="againBtn" type="button">↻ escanear outro achado</button>
+        <div class="review-feed" id="reviewFeed" aria-live="polite" aria-atomic="false"></div>
       </div>
     </section>
 
@@ -263,7 +291,7 @@
     (() => {
       'use strict';
 
-      const state = { products: [], viewProducts: [], searchQuery: '', lastIndex: -1, busy: false, refreshTimer: null, countdownTimer: null, nextUpdateAt: null, lastSyncAt: null, visibleCount: 0 };
+      const state = { products: [], viewProducts: [], searchQuery: '', lastIndex: -1, busy: false, refreshTimer: null, countdownTimer: null, nextUpdateAt: null, lastSyncAt: null, visibleCount: 0, nextProduct: null, scanReviewTimer: null, mediaNodes: [], mediaStopTimer: null };
       // Sem teto artificial: mostramos o catálogo inteiro que o bot publicar.
       // Renderizamos em lotes (scroll incremental) só para não travar o
       // celular jogando centenas de cards no DOM de uma vez só.
@@ -274,6 +302,7 @@
         scanner: $('scanner'), scanBtn: $('scanBtn'), card: $('productCard'), again: $('againBtn'),
         grid: $('grid'), status: $('status'), count: $('count'), catalogSearch: $('catalogSearch'), clearSearch: $('clearSearch'),
         nextUpdate: $('nextUpdate'), countdown: $('countdown'), updatedAtLabel: $('updatedAtLabel'),
+        reviewFeed: $('reviewFeed'), scanMediaWall: $('scanMediaWall'),
         thumb: $('cThumb'), thumbImg: $('cThumbImg'), thumbEmoji: $('cThumbEmoji'),
         tag: $('cTag'), name: $('cName'), stars: $('cStars'), desc: $('cDesc'),
         old: $('cOld'), now: $('cNow'), off: $('cOff'), cta: $('cCta')
@@ -341,12 +370,16 @@
       }
 
       function pickProduct() {
-        const n = state.viewProducts.length;
+        const reviewReady = state.viewProducts.filter((p) => Array.isArray(p?.reviews) && p.reviews.length);
+        const pool = reviewReady.length ? reviewReady : state.viewProducts;
+        const n = pool.length;
         if (!n) return null;
         let i = Math.floor(Math.random() * n);
-        if (n > 1 && i === state.lastIndex) i = (i + 1) % n;
-        state.lastIndex = i;
-        return state.viewProducts[i];
+        const previousId = state.viewProducts[state.lastIndex]?.id;
+        if (n > 1 && pool[i]?.id === previousId) i = (i + 1) % n;
+        const finalPick = pool[i];
+        state.lastIndex = state.viewProducts.findIndex((p) => p?.id === finalPick?.id);
+        return finalPick;
       }
 
       function setImage(img, url, alt) {
@@ -397,21 +430,85 @@
         if (!stillValid) primeNextProduct();
       }
 
+      function initials(name) {
+        const text = String(name || '').trim().replace(/^@/, '');
+        if (!text) return 'SH';
+        const parts = text.split(/[^a-zA-Z0-9À-ÿ]+/).filter(Boolean);
+        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+        return text.slice(0, 2).toUpperCase();
+      }
+
+      function clearScanExtras() {
+        window.clearInterval(state.scanReviewTimer);
+        state.scanReviewTimer = null;
+        window.clearTimeout(state.mediaStopTimer);
+        state.mediaStopTimer = null;
+        els.reviewFeed.replaceChildren();
+        els.scanMediaWall.replaceChildren();
+        els.scanner.classList.remove('has-scan-media');
+        state.mediaNodes = [];
+      }
+
+      function renderScanVideos(p) {
+        els.scanMediaWall.replaceChildren();
+        const urls = [...(Array.isArray(p?.productVideos) ? p.productVideos : []), ...(Array.isArray(p?.reviewVideos) ? p.reviewVideos : [])].slice(0, 4);
+        if (!urls.length) { els.scanner.classList.remove('has-scan-media'); return; }
+        urls.forEach((url) => {
+          const tile = document.createElement('div'); tile.className = 'scan-media-tile';
+          const video = document.createElement('video');
+          video.src = url; video.muted = true; video.defaultMuted = true; video.volume = 0;
+          video.autoplay = true; video.loop = true; video.playsInline = true; video.preload = 'metadata';
+          video.setAttribute('muted',''); video.setAttribute('playsinline',''); video.setAttribute('aria-hidden','true');
+          tile.appendChild(video); els.scanMediaWall.appendChild(tile); state.mediaNodes.push(video);
+          video.play().catch(() => {});
+        });
+        const shade = document.createElement('div'); shade.className = 'scan-media-shade'; els.scanMediaWall.appendChild(shade);
+        els.scanner.classList.add('has-scan-media');
+      }
+
+      function renderReviewFeed(p) {
+        window.clearInterval(state.scanReviewTimer); state.scanReviewTimer = null; els.reviewFeed.replaceChildren();
+        const reviews = Array.isArray(p?.reviews) ? p.reviews.filter((r) => r && r.comment).slice(0, 4) : [];
+        if (!reviews.length) return;
+        let idx = 0;
+        const showOne = () => {
+          const review = reviews[idx % reviews.length]; idx += 1;
+          const toast = document.createElement('div'); toast.className = 'review-toast'; toast.style.top = `${12 + (idx % 4) * 18}%`;
+          const head = document.createElement('div'); head.className = 'review-toast-head';
+          const avatar = document.createElement('div'); avatar.className = 'review-avatar'; avatar.textContent = initials(review.author);
+          const meta = document.createElement('div'); meta.className = 'review-meta';
+          const brand = document.createElement('span'); brand.className = 'review-brand'; brand.textContent = 'achadosshopeebsf';
+          const user = document.createElement('span'); user.className = 'review-user'; user.textContent = review.author ? `@${String(review.author).replace(/^@/,'')}` : 'comprador anônimo';
+          meta.append(brand, user);
+          const stars = document.createElement('span'); stars.className = 'review-stars'; stars.textContent = '★'.repeat(Math.max(1, Math.min(5, Number(review.rating || 5))));
+          head.append(avatar, meta, stars);
+          const comment = document.createElement('p'); comment.className = 'review-comment'; comment.textContent = review.comment;
+          const source = document.createElement('div'); source.className = 'review-source'; source.textContent = 'avaliação real · Shopee';
+          toast.append(head, comment, source); els.reviewFeed.appendChild(toast);
+          window.setTimeout(() => toast.remove(), 5200);
+        };
+        showOne();
+        if (reviews.length > 1) {
+          state.scanReviewTimer = window.setInterval(() => {
+            if (idx >= reviews.length) { window.clearInterval(state.scanReviewTimer); state.scanReviewTimer = null; return; }
+            showOne();
+          }, 1600);
+        }
+      }
+
       function reveal() {
         if (state.busy) return;
         if (!state.products.length) { els.status.textContent = 'Nenhum produto disponível no momento.'; return; }
         state.busy = true; els.scanBtn.disabled = true; els.status.textContent = 'Buscando um achado…';
         const stillValid = state.nextProduct && state.viewProducts.some((p) => p.id === state.nextProduct.id);
         const p = stillValid ? state.nextProduct : pickProduct();
-        fillCard(p); els.scanner.classList.add('scanning');
-        primeNextProduct(); // já deixa o próximo pronto (foto em cache) para o clique seguinte
+        clearScanExtras(); fillCard(p); renderScanVideos(p); renderReviewFeed(p);
+        els.scanner.classList.add('scanning'); primeNextProduct();
         window.setTimeout(() => {
-          els.scanner.classList.remove('scanning');
-          els.card.classList.add('show');
-          els.card.setAttribute('aria-hidden', 'false');
-          els.again.style.display = 'block';
-          els.status.textContent = 'Achado encontrado.';
+          els.scanner.classList.remove('scanning'); els.card.classList.add('show'); els.card.setAttribute('aria-hidden','false'); els.again.style.display = 'block';
+          els.status.textContent = (Array.isArray(p?.reviews) && p.reviews.length) ? 'Achado encontrado · avaliações reais carregadas.' : 'Achado encontrado.';
           state.busy = false; els.scanBtn.disabled = false;
+          state.mediaStopTimer = window.setTimeout(() => { if (!state.busy) { els.scanner.classList.remove('has-scan-media'); state.mediaNodes.forEach((video) => { try { video.pause(); } catch {} }); } }, 11000);
         }, 420);
       }
 
@@ -584,6 +681,7 @@
       els.again.addEventListener('click', () => {
         els.card.classList.remove('show');
         els.card.setAttribute('aria-hidden','true');
+        clearScanExtras();
         window.setTimeout(reveal, 160);
       });
 
