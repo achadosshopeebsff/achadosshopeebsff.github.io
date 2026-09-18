@@ -117,3 +117,25 @@ Referência: Explorer oficial da Shopee Affiliate Open API.
 - Avaliações e vídeos são armazenados em `review-cache.json` e renovados de forma rotativa para evitar excesso de requisições.
 
 > Observação: a Affiliate Open API fornece os dados do catálogo, mas os detalhes públicos de avaliações/vídeos são obtidos separadamente dos endpoints públicos da Shopee. O funcionamento desses endpoints pode mudar por decisão da plataforma.
+
+## Busca ampliada em tempo real (V4)
+
+A página continua compatível com GitHub Pages, mas GitHub Pages é hospedagem estática: ela não executa a `productOfferV2` com o Secret no navegador. Por isso, `index.html` tenta `/api/search` quando a busca tem 2+ caracteres. O arquivo `api/search.js` é uma função serverless compatível com Vercel e mantém `SHOPEE_APP_ID`/`SHOPEE_APP_SECRET` somente no servidor.
+
+Quando hospedado em Vercel (ou atrás de uma infraestrutura serverless equivalente), a busca combina o catálogo local com novos resultados da Shopee Affiliate Open API, aplica R$10+, nota 4,5+, `shopee.com.br`, tipos de loja 1/2/4, bloqueio de nomes explicitamente internacionais e deduplicação por produto/preço. O link retornado é `offerLink` da API. A busca não fica limitada aos 500 itens publicados no catálogo.
+
+## Avaliações e vídeos reais
+
+A Shopee Affiliate Open API documenta campos de produto/comissão, mas não publica nessa API a lista individual de comentários. Os endpoints internos da página Shopee que o projeto antigo consultava estão sujeitos ao anti-bot 90309999; por isso a V4 **não tenta mais burlar ou repetir essas chamadas**. Isso elimina a rajada de erros HTTP 403 do `sync-meta.json`.
+
+O site só exibe comentários/vídeos quando eles chegam pelo cache (`review-cache.json`) ou por um `SHOPEE_REVIEW_PROVIDER_URL` explicitamente configurado pelo operador, que deve devolver dados reais e autorizados. Nenhum nome, perfil, comentário ou vídeo é inventado. Sem dados reais, o scanner mostra apenas a imagem translúcida do produto em vez de fingir um vídeo.
+
+### Secrets adicionais opcionais
+
+- `SHOPEE_REVIEW_PROVIDER_URL`
+- `SHOPEE_REVIEW_PROVIDER_TOKEN`
+- `ALLOWED_ORIGIN` (opcional para proteger a função de busca)
+
+### Busca em GitHub Pages
+
+Em GitHub Pages puro, a função `/api/search` não é executada. Nesse caso a busca continua funcionando no catálogo publicado, sem expor o Secret, e a busca ao vivo fica disponível assim que o mesmo projeto for hospedado em uma plataforma serverless como Vercel.

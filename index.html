@@ -54,39 +54,45 @@
     h1{margin:18px 0;font:800 clamp(36px,7vw,60px)/1.03 "Space Grotesk",sans-serif;letter-spacing:-.03em}
     .grad{color:var(--primary)}
     .sub{max-width:600px;margin:0 auto 42px;color:var(--muted);font-size:clamp(15px,2vw,17px);line-height:1.65}
-    .scanner{width:min(224px,68vw);aspect-ratio:1;margin:0 auto 24px;position:relative;display:grid;place-items:center}
-    .scan-media-wall{position:absolute;inset:-42px;z-index:0;pointer-events:none;opacity:0;transition:opacity .35s ease;overflow:hidden;border-radius:48px}
-    .scanning .scan-media-wall,.scanner.has-scan-media .scan-media-wall{opacity:.22}
-    .scan-media-tile{position:absolute;width:78px;height:112px;border-radius:18px;overflow:hidden;filter:saturate(.9) blur(.15px);box-shadow:0 12px 32px rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.16);background:#171313;will-change:transform,opacity}
-    .scan-media-tile:nth-child(1){left:0;top:14%;transform:rotate(-7deg)}
-    .scan-media-tile:nth-child(2){right:0;top:3%;transform:rotate(8deg)}
-    .scan-media-tile:nth-child(3){left:12%;bottom:-3%;transform:rotate(5deg)}
-    .scan-media-tile:nth-child(4){right:12%;bottom:3%;transform:rotate(-6deg)}
-    .scan-media-tile video{width:100%;height:100%;object-fit:cover;opacity:.88}
-    .scan-media-shade{position:absolute;inset:0;background:radial-gradient(circle,rgba(16,7,8,.05),rgba(16,7,8,.75));backdrop-filter:blur(1px)}
-    .ring{position:absolute;inset:0;border-radius:50%;background:conic-gradient(var(--secondary),var(--primary),var(--accent),var(--secondary))}
-    .ring::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--bg)}
-    .scan-btn{
-      position:relative;z-index:1;width:82%;height:82%;border-radius:50%;border:1px solid var(--border);
-      background:#1b1616;color:var(--text);cursor:pointer;display:flex;flex-direction:column;
-      align-items:center;justify-content:center;gap:8px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)
-    }
-    .scan-btn:hover{transform:translateY(-1px)}
-    .scan-btn:active{transform:scale(.98)}
-    .scan-btn:disabled{opacity:.7;cursor:wait}
-    .scan-btn svg{width:28px;height:28px;stroke:var(--accent)}
-    .scan-btn span{font:700 15px "Space Grotesk",sans-serif}
-    .scan-btn small{font:500 10px "JetBrains Mono",monospace;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+    .scanner{width:min(300px,78vw);aspect-ratio:1;margin:0 auto 24px;position:relative;display:grid;place-items:center;isolation:isolate}
+    .scan-ambient{position:absolute;inset:-34px;border-radius:50%;z-index:0;pointer-events:none;background:radial-gradient(circle,rgba(252,95,2,.16),rgba(252,95,2,.035) 44%,transparent 70%);filter:blur(14px);opacity:0;transform:scale(.92);transition:opacity .45s ease,transform .6s ease}
+    .scanning .scan-ambient,.scanner.has-scan-media .scan-ambient{opacity:1;transform:scale(1)}
+    .scan-media-wall{position:absolute;inset:-88px;z-index:0;pointer-events:none;opacity:0;overflow:hidden;border-radius:58px;transition:opacity .45s ease;mask-image:radial-gradient(circle,black 40%,transparent 84%);-webkit-mask-image:radial-gradient(circle,black 40%,transparent 84%)}
+    .scanning .scan-media-wall,.scanner.has-scan-media .scan-media-wall{opacity:.34}
+    .scan-media-tile{position:absolute;width:88px;height:124px;border-radius:22px;overflow:hidden;filter:saturate(.82) blur(.3px);box-shadow:0 16px 44px rgba(0,0,0,.34);border:1px solid rgba(255,255,255,.14);background:#171313;will-change:transform,opacity;backdrop-filter:blur(7px)}
+    .scan-media-tile:nth-child(1){left:1%;top:9%;transform:rotate(-10deg) scale(.94)}
+    .scan-media-tile:nth-child(2){right:1%;top:3%;transform:rotate(9deg) scale(.96)}
+    .scan-media-tile:nth-child(3){left:8%;bottom:-4%;transform:rotate(7deg) scale(.9)}
+    .scan-media-tile:nth-child(4){right:9%;bottom:2%;transform:rotate(-8deg) scale(.9)}
+    .scan-media-tile video{width:100%;height:100%;object-fit:cover;opacity:.74}
+    .scan-media-shade{position:absolute;inset:0;background:radial-gradient(circle,rgba(16,7,8,.06),rgba(16,7,8,.78));backdrop-filter:blur(1.5px)}
+    .scan-product-preview{position:absolute;inset:18%;z-index:1;display:grid;place-items:center;pointer-events:none;opacity:0;transform:scale(.84) translateY(8px);transition:opacity .45s ease,transform .65s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 18px 35px rgba(0,0,0,.3));border-radius:34px}
+    .scanner.has-scan-media .scan-product-preview,.scanning .scan-product-preview{opacity:.25;transform:scale(1) translateY(0)}
+    .scan-product-preview img{width:100%;height:100%;max-width:none;object-fit:contain;opacity:.78;mix-blend-mode:screen;filter:saturate(.9) contrast(.96) blur(.1px)}
+    .scan-product-glow{position:absolute;inset:12%;border-radius:32px;background:radial-gradient(circle,rgba(252,176,10,.2),transparent 68%);filter:blur(8px);z-index:-1}
+    .ring{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 180deg,var(--secondary),var(--primary),var(--accent),var(--secondary));z-index:2;opacity:.98}
+    .ring::after{content:"";position:absolute;inset:4px;border-radius:50%;background:radial-gradient(circle at 50% 42%,rgba(27,22,22,.76),rgba(16,7,8,.96) 68%);box-shadow:inset 0 0 35px rgba(0,0,0,.34)}
+    .scan-btn{position:relative;z-index:4;width:78%;height:78%;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(27,22,22,.70);color:var(--text);cursor:pointer;display:grid;place-items:center;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 18px 50px rgba(0,0,0,.24);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+    .scan-btn:hover{transform:translateY(-1px);background:rgba(36,31,31,.74)}
+    .scan-btn:active{transform:scale(.985)}
+    .scan-btn:disabled{opacity:.82;cursor:wait}
+    .scan-btn-orb{position:absolute;width:44%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(252,95,2,.19),transparent 68%);filter:blur(3px);transform:translateY(-8px)}
+    .scan-btn-content{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;text-align:center}
+    .scan-btn svg{width:28px;height:28px;stroke:var(--accent);filter:drop-shadow(0 4px 10px rgba(252,176,10,.2))}
+    .scan-btn strong{font:800 18px "Space Grotesk",sans-serif;letter-spacing:-.02em}
+    .scan-btn small{font:500 9px "JetBrains Mono",monospace;color:rgba(255,255,255,.58);letter-spacing:.08em;text-transform:uppercase}
     .scanning .ring{animation:spin .8s linear infinite}
+    .scanning .scan-product-preview{animation:scanPreviewPulse 1.15s ease-in-out infinite alternate}
     @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes scanPreviewPulse{from{transform:scale(1) translateY(0);opacity:.22}to{transform:scale(1.04) translateY(-4px);opacity:.32}}
     .status{min-height:24px;color:var(--muted);font-size:13px}
     .next-update{width:min(440px,100%);margin:12px auto 26px;padding:12px 16px;border-radius:16px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;text-align:center}
     .next-update-label{font:700 9px "JetBrains Mono",monospace;color:var(--muted);letter-spacing:.08em}
     .next-update strong{font:800 18px "JetBrains Mono",monospace;color:var(--accent);min-width:62px}
     .next-update-sub{width:100%;font-size:11px;color:var(--muted)}
     .reveal-stage{width:min(620px,100%);margin:12px auto 0;position:relative}
-    .review-feed{position:absolute;inset:0;pointer-events:none;z-index:30;overflow:hidden;border-radius:26px}
-    .review-toast{position:absolute;right:clamp(8px,2vw,18px);width:min(340px,calc(100% - 16px));padding:10px 12px;border-radius:16px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14);box-shadow:0 12px 32px rgba(0,0,0,.26),inset 0 1px 0 rgba(255,255,255,.08);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);opacity:0;transform:translate3d(26px,0,0) scale(.97);animation:reviewToastIn .42s cubic-bezier(.2,.8,.2,1) forwards,reviewToastOut .55s ease-in forwards;animation-delay:0s,4.4s}
+    .review-feed{position:absolute;inset:-18% -28%;pointer-events:none;z-index:7;overflow:visible;border-radius:32px}
+    .review-toast{position:absolute;right:0;width:min(260px,74vw);padding:9px 11px;border-radius:16px;background:rgba(255,255,255,.085);border:1px solid rgba(255,255,255,.12);box-shadow:0 14px 40px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.07);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);opacity:0;transform:translate3d(28px,0,0) scale(.97);animation:reviewToastIn .42s cubic-bezier(.2,.8,.2,1) forwards,reviewToastOut .55s ease-in forwards;animation-delay:0s,4.4s}
     .review-toast-head{display:flex;align-items:center;gap:8px;margin-bottom:5px}
     .review-avatar{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;background:rgba(252,95,2,.28);color:#fff;font:800 10px "JetBrains Mono",monospace;border:1px solid rgba(255,255,255,.16)}
     .review-meta{min-width:0;display:flex;flex-direction:column;gap:1px}
@@ -129,6 +135,9 @@
     .catalog-search button{border:0;background:transparent;color:var(--muted);cursor:pointer;border-radius:10px;padding:8px;font-weight:700}
     .catalog-search button:hover{background:rgba(255,255,255,.06);color:var(--text)}
     .search-hint{margin:8px 2px 0;color:var(--muted);font-size:11px}
+    .search-hint strong{color:rgba(255,255,255,.82);font-weight:700}
+    .live-badge{display:inline-flex;align-items:center;gap:5px;margin-left:6px;color:var(--accent);font:700 9px "JetBrains Mono",monospace;letter-spacing:.06em;text-transform:uppercase}
+    .live-badge i{width:5px;height:5px;border-radius:50%;background:currentColor;box-shadow:0 0 10px currentColor}
 .catalog-policy{font-size:10px;font-weight:800;letter-spacing:.04em;color:var(--muted);white-space:nowrap;padding:6px 8px;border:1px solid rgba(255,255,255,.08);border-radius:999px}
     .empty-search{grid-column:1/-1;padding:26px;text-align:center;color:var(--muted)}
     .section-head h2{margin:0;font:700 23px "Space Grotesk",sans-serif}.section-head span{color:var(--muted);font:500 11px "JetBrains Mono",monospace}
@@ -162,7 +171,7 @@
     .credit{margin-top:14px;color:var(--muted);font:700 12px "Space Grotesk",sans-serif}
     @media (max-width:640px){
       .catalog-policy{display:none}
-      .review-toast{width:min(300px,calc(100% - 12px));right:6px}
+      .review-toast{width:min(245px,72vw);right:-2%}.review-feed{inset:-20% -9%}
       .scan-media-wall{inset:-30px}
       .scan-media-tile{width:64px;height:92px}
 
@@ -185,7 +194,7 @@
     }
     @media (prefers-reduced-motion:reduce){
       html{scroll-behavior:auto}.scanning .ring{animation:none}.card{transition:none}.scan-btn:hover,.scan-btn:active{transform:none}.review-toast{animation:none;opacity:1;transform:none}
-      .scan-media-wall{opacity:.12!important}
+      .scan-media-wall{opacity:.12!important}.scan-product-preview{opacity:.12!important;transform:none!important}.scan-btn{backdrop-filter:none;-webkit-backdrop-filter:none}
     }
     @media (pointer:coarse){
       .nav-links a,.cta,.again,.scan-btn{min-height:44px}.nav-links a{display:grid;place-items:center}
@@ -216,12 +225,21 @@
       <p class="sub">Produtos selecionados automaticamente da Shopee com foto, preço e link de afiliado atualizado.</p>
 
       <div class="scanner" id="scanner" aria-hidden="true">
+        <div class="scan-ambient" aria-hidden="true"></div>
         <div class="scan-media-wall" id="scanMediaWall" aria-hidden="true"></div>
+        <div class="scan-product-preview" id="scanProductPreview" aria-hidden="true">
+          <img id="scanProductPreviewImg" alt="" decoding="async">
+          <div class="scan-product-glow"></div>
+        </div>
         <div class="ring"></div>
         <button class="scan-btn" id="scanBtn" type="button" aria-label="Escanear e revelar um achado" aria-controls="productCard">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>
-          <span>Escanear</span><small>toque para buscar</small>
+          <span class="scan-btn-orb" aria-hidden="true"></span>
+          <span class="scan-btn-content">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>
+            <strong>Escanear</strong><small>toque para buscar</small>
+          </span>
         </button>
+        <div class="review-feed" id="reviewFeed" aria-live="polite" aria-atomic="false"></div>
       </div>
       <p class="status" id="status" role="status" aria-live="polite">Carregando achados…</p>
       <div class="next-update glass" id="nextUpdate" role="status" aria-live="polite" aria-label="Contagem para a próxima atualização">
@@ -255,7 +273,6 @@
           </div>
         </article>
         <button class="again" id="againBtn" type="button">↻ escanear outro achado</button>
-        <div class="review-feed" id="reviewFeed" aria-live="polite" aria-atomic="false"></div>
       </div>
     </section>
 
@@ -273,7 +290,7 @@
           <span class="catalog-policy" aria-hidden="true">R$ 10+ · 4,5★+</span>
           <button id="clearSearch" type="button" aria-label="Limpar busca" hidden>Limpar</button>
         </div>
-        <div class="search-hint">Pesquise por produto, categoria ou loja dentro dos achados disponíveis.</div>
+        <div class="search-hint">Pesquise no catálogo e, com uma consulta válida, o site também procura <strong>novos produtos diretamente na Shopee</strong>.</div>
       </div>
       <div class="grid" id="grid" aria-live="polite"></div>
     </section>
@@ -291,7 +308,7 @@
     (() => {
       'use strict';
 
-      const state = { products: [], viewProducts: [], searchQuery: '', lastIndex: -1, busy: false, refreshTimer: null, countdownTimer: null, nextUpdateAt: null, lastSyncAt: null, visibleCount: 0, nextProduct: null, scanReviewTimer: null, mediaNodes: [], mediaStopTimer: null };
+      const state = { products: [], viewProducts: [], liveResults: [], searchQuery: '', lastIndex: -1, busy: false, refreshTimer: null, countdownTimer: null, nextUpdateAt: null, lastSyncAt: null, visibleCount: 0, nextProduct: null, scanReviewTimer: null, mediaNodes: [], mediaStopTimer: null, searchTimer: null, liveSearchSeq: 0, liveSearchEnabled: true, liveSearchError: '' };
       // Sem teto artificial: mostramos o catálogo inteiro que o bot publicar.
       // Renderizamos em lotes (scroll incremental) só para não travar o
       // celular jogando centenas de cards no DOM de uma vez só.
@@ -302,7 +319,7 @@
         scanner: $('scanner'), scanBtn: $('scanBtn'), card: $('productCard'), again: $('againBtn'),
         grid: $('grid'), status: $('status'), count: $('count'), catalogSearch: $('catalogSearch'), clearSearch: $('clearSearch'),
         nextUpdate: $('nextUpdate'), countdown: $('countdown'), updatedAtLabel: $('updatedAtLabel'),
-        reviewFeed: $('reviewFeed'), scanMediaWall: $('scanMediaWall'),
+        reviewFeed: $('reviewFeed'), scanMediaWall: $('scanMediaWall'), scanProductPreview: $('scanProductPreview'), scanProductPreviewImg: $('scanProductPreviewImg'),
         thumb: $('cThumb'), thumbImg: $('cThumbImg'), thumbEmoji: $('cThumbEmoji'),
         tag: $('cTag'), name: $('cName'), stars: $('cStars'), desc: $('cDesc'),
         old: $('cOld'), now: $('cNow'), off: $('cOff'), cta: $('cCta')
@@ -327,46 +344,117 @@
         ].filter(Boolean).join(' '));
       }
 
+      function localSearchProducts(query) {
+        if (!query) return state.products.slice();
+        const terms = query.split(' ').filter(Boolean);
+        return state.products
+          .map((p) => {
+            const title = normalizeSearchText(p?.title);
+            const haystack = searchableText(p);
+            let score = 0;
+            if (title === query) score += 1000;
+            if (title.startsWith(query)) score += 600;
+            if (title.includes(query)) score += 300;
+            if (haystack.includes(query)) score += 150;
+            for (const term of terms) {
+              if (!haystack.includes(term)) return null;
+              score += 45;
+            }
+            if (p?.tag && query.includes(normalizeSearchText(p.tag))) score += 20;
+            score += Math.min(12, Number(p?.rating || 0) * 2);
+            return { p, score };
+          })
+          .filter(Boolean)
+          .sort((a, b) => b.score - a.score)
+          .map((x) => x.p);
+      }
+
+      function validCatalogProduct(p) {
+        if (!p || !(p.title || p.productName) || !(p.affLink || p.productLink)) return false;
+        const raw = String(p.now || '').replace(/[^0-9,.]/g, '');
+        const price = raw.includes(',') ? Number(raw.replace(/\./g, '').replace(',', '.')) : Number(raw);
+        const rating = Number(p.rating || 0);
+        const link = String(p.productLink || p.affLink || '');
+        return Number.isFinite(price) && price >= 10 && rating >= 4.5 && /shopee\.com\.br\//i.test(link);
+      }
+
+      function mergeSearchResults(local, live) {
+        const map = new Map();
+        const bySignature = new Map();
+        const add = (p, liveFlag = false) => {
+          if (!validCatalogProduct(p)) return;
+          const id = String(p.id || p.itemId || '');
+          const titleKey = normalizeSearchText(p.title || p.productName).replace(/[^a-z0-9]+/g, ' ').trim();
+          const existing = id ? map.get(id) : null;
+          if (existing) return;
+          const signature = titleKey;
+          const prior = bySignature.get(signature);
+          if (prior) {
+            const a = Number(String(prior.now || '').replace(/[^0-9,.]/g,'' ).replace(/\./g,'').replace(',','.')) || Infinity;
+            const b = Number(String(p.now || '').replace(/[^0-9,.]/g,'' ).replace(/\./g,'').replace(',','.')) || Infinity;
+            if (b < a) {
+              map.set(String(prior.id || prior.itemId), { ...p, live: liveFlag });
+              bySignature.set(signature, p);
+            }
+            return;
+          }
+          if (id) map.set(id, { ...p, live: liveFlag });
+          else map.set(`${signature}-${map.size}`, { ...p, live: liveFlag });
+          bySignature.set(signature, p);
+        };
+        local.forEach((p) => add(p, false));
+        live.forEach((p) => add(p, true));
+        return Array.from(map.values());
+      }
+
+      function renderSearchState() {
+        const local = localSearchProducts(state.searchQuery);
+        state.viewProducts = mergeSearchResults(local, state.liveResults);
+        state.lastIndex = -1;
+        state.visibleCount = Math.min(GRID_BATCH_SIZE, state.viewProducts.length);
+        els.clearSearch.hidden = !state.searchQuery;
+        renderGrid();
+        ensureNextProductPrimed();
+        if (state.searchQuery && state.liveSearchEnabled) {
+          const suffix = state.liveResults.length ? ` · ${state.liveResults.length} resultados novos na Shopee` : '';
+          els.status.textContent = state.liveSearchError ? 'Busca local disponível; busca Shopee indisponível nesta hospedagem.' : `Pesquisando: “${state.searchQuery}”${suffix}`;
+        }
+      }
+
+      async function requestLiveSearch(query, seq) {
+        if (!state.liveSearchEnabled || query.length < 2 || seq !== state.liveSearchSeq) return;
+        try {
+          const url = `./api/search?q=${encodeURIComponent(query)}&limit=80`;
+          const res = await fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json' } });
+          if (!res.ok) throw new Error(`LIVE_SEARCH_HTTP_${res.status}`);
+          const data = await res.json();
+          if (seq !== state.liveSearchSeq) return;
+          state.liveResults = Array.isArray(data?.products) ? data.products : [];
+          state.liveSearchError = '';
+          renderSearchState();
+        } catch (error) {
+          if (seq !== state.liveSearchSeq) return;
+          state.liveResults = [];
+          state.liveSearchError = error?.message || 'erro';
+          // 404 em GitHub Pages significa apenas que não existe backend serverless
+          // nessa hospedagem; não quebra o catálogo local.
+          if (/LIVE_SEARCH_HTTP_404/.test(state.liveSearchError)) state.liveSearchEnabled = false;
+          renderSearchState();
+        }
+      }
+
       function applySearch() {
         const query = normalizeSearchText(els.catalogSearch.value || '');
         state.searchQuery = query;
-        state.lastIndex = -1;
-
-        if (!query) {
-          state.viewProducts = state.products.slice();
-        } else {
-          const terms = query.split(' ').filter(Boolean);
-          state.viewProducts = state.products
-            .map((p) => {
-              const title = normalizeSearchText(p?.title);
-              const haystack = searchableText(p);
-              let score = 0;
-
-              if (title === query) score += 1000;
-              if (title.startsWith(query)) score += 600;
-              if (title.includes(query)) score += 300;
-              if (haystack.includes(query)) score += 150;
-
-              let allTerms = true;
-              for (const term of terms) {
-                if (haystack.includes(term)) score += 45;
-                else allTerms = false;
-              }
-              if (!allTerms) return null;
-
-              if (p?.tag && query.includes(normalizeSearchText(p.tag))) score += 20;
-              score += Math.min(12, Number(p?.rating || 0) * 2);
-              return { p, score };
-            })
-            .filter(Boolean)
-            .sort((a, b) => b.score - a.score)
-            .map((x) => x.p);
+        state.liveResults = [];
+        state.liveSearchSeq++;
+        if (state.searchTimer) window.clearTimeout(state.searchTimer);
+        renderSearchState();
+        if (query.length >= 2 && state.liveSearchEnabled) {
+          const seq = state.liveSearchSeq;
+          els.status.textContent = `Pesquisando “${query}” na Shopee…`;
+          state.searchTimer = window.setTimeout(() => requestLiveSearch(query, seq), 320);
         }
-
-        state.visibleCount = Math.min(GRID_BATCH_SIZE, state.viewProducts.length);
-        els.clearSearch.hidden = !query;
-        renderGrid();
-        ensureNextProductPrimed();
       }
 
       function pickProduct() {
@@ -447,13 +535,35 @@
         els.scanMediaWall.replaceChildren();
         els.scanner.classList.remove('has-scan-media');
         state.mediaNodes = [];
+        els.scanProductPreviewImg.removeAttribute('src');
+        els.scanProductPreviewImg.alt = '';
+      }
+
+      function setScanPreviewImage(p) {
+        const url = String(p?.image || '').trim();
+        if (!url) { els.scanProductPreviewImg.removeAttribute('src'); return; }
+        els.scanProductPreviewImg.alt = p?.title || 'Produto escaneado';
+        els.scanProductPreviewImg.src = url;
+      }
+
+      function safeMediaUrl(url) {
+        const value = String(url || '').trim();
+        if (!/^https?:\/\//i.test(value)) return '';
+        return /^https?:\/\/(?:[^/]+\.)?(?:shopee|susercontent)\.com(?:\.[^/]+)?\//i.test(value) ? value : '';
       }
 
       function renderScanVideos(p) {
         els.scanMediaWall.replaceChildren();
-        const urls = [...(Array.isArray(p?.productVideos) ? p.productVideos : []), ...(Array.isArray(p?.reviewVideos) ? p.reviewVideos : [])].slice(0, 4);
-        if (!urls.length) { els.scanner.classList.remove('has-scan-media'); return; }
-        urls.forEach((url) => {
+        const urls = [...(Array.isArray(p?.productVideos) ? p.productVideos : []), ...(Array.isArray(p?.reviewVideos) ? p.reviewVideos : [])]
+          .map(safeMediaUrl).filter(Boolean);
+        setScanPreviewImage(p);
+        if (!urls.length) {
+          // Sem inventar vídeo: a arte do produto continua aparecendo de forma
+          // translúcida atrás do botão até que uma fonte autorizada de vídeo esteja disponível.
+          els.scanner.classList.add('has-scan-media');
+          return;
+        }
+        urls.slice(0, 4).forEach((url) => {
           const tile = document.createElement('div'); tile.className = 'scan-media-tile';
           const video = document.createElement('video');
           video.src = url; video.muted = true; video.defaultMuted = true; video.volume = 0;
@@ -468,12 +578,12 @@
 
       function renderReviewFeed(p) {
         window.clearInterval(state.scanReviewTimer); state.scanReviewTimer = null; els.reviewFeed.replaceChildren();
-        const reviews = Array.isArray(p?.reviews) ? p.reviews.filter((r) => r && r.comment).slice(0, 4) : [];
+        const reviews = Array.isArray(p?.reviews) ? p.reviews.filter((r) => r && r.comment).slice(0, 5) : [];
         if (!reviews.length) return;
         let idx = 0;
         const showOne = () => {
           const review = reviews[idx % reviews.length]; idx += 1;
-          const toast = document.createElement('div'); toast.className = 'review-toast'; toast.style.top = `${12 + (idx % 4) * 18}%`;
+          const toast = document.createElement('div'); toast.className = 'review-toast'; toast.style.top = `${2 + (idx % 5) * 19}%`;
           const head = document.createElement('div'); head.className = 'review-toast-head';
           const avatar = document.createElement('div'); avatar.className = 'review-avatar'; avatar.textContent = initials(review.author);
           const meta = document.createElement('div'); meta.className = 'review-meta';
@@ -496,6 +606,24 @@
         }
       }
 
+      async function hydrateScanDetails(p) {
+        if (!p?.shopId || !p?.itemId) return;
+        try {
+          const url = `./api/reviews?shopId=${encodeURIComponent(p.shopId)}&itemId=${encodeURIComponent(p.itemId)}`;
+          const res = await fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json' } });
+          if (!res.ok) return;
+          const data = await res.json();
+          if (!data || (Array.isArray(data.reviews) && !data.reviews.length && !data.reviewVideos?.length && !data.productVideos?.length)) return;
+          const enriched = { ...p, reviews: Array.isArray(data.reviews) ? data.reviews : (p.reviews || []), reviewVideos: Array.isArray(data.reviewVideos) ? data.reviewVideos : (p.reviewVideos || []), productVideos: Array.isArray(data.productVideos) ? data.productVideos : (p.productVideos || []), reviewCount: Number(data.totalCount || p.reviewCount || 0) };
+          const idx = state.products.findIndex((x) => String(x.id) === String(p.id));
+          if (idx >= 0) state.products[idx] = enriched;
+          renderScanVideos(enriched);
+          renderReviewFeed(enriched);
+          const current = String(els.name.textContent || '') === String(p.title || '');
+          if (current && enriched.reviews.length) els.status.textContent = 'Achado encontrado · avaliações reais carregadas.';
+        } catch (_) { /* busca de detalhes é complementar ao scanner */ }
+      }
+
       function reveal() {
         if (state.busy) return;
         if (!state.products.length) { els.status.textContent = 'Nenhum produto disponível no momento.'; return; }
@@ -503,12 +631,18 @@
         const stillValid = state.nextProduct && state.viewProducts.some((p) => p.id === state.nextProduct.id);
         const p = stillValid ? state.nextProduct : pickProduct();
         clearScanExtras(); fillCard(p); renderScanVideos(p); renderReviewFeed(p);
+        hydrateScanDetails(p);
         els.scanner.classList.add('scanning'); primeNextProduct();
         window.setTimeout(() => {
           els.scanner.classList.remove('scanning'); els.card.classList.add('show'); els.card.setAttribute('aria-hidden','false'); els.again.style.display = 'block';
           els.status.textContent = (Array.isArray(p?.reviews) && p.reviews.length) ? 'Achado encontrado · avaliações reais carregadas.' : 'Achado encontrado.';
           state.busy = false; els.scanBtn.disabled = false;
-          state.mediaStopTimer = window.setTimeout(() => { if (!state.busy) { els.scanner.classList.remove('has-scan-media'); state.mediaNodes.forEach((video) => { try { video.pause(); } catch {} }); } }, 11000);
+          state.mediaStopTimer = window.setTimeout(() => {
+            if (!state.busy) {
+              // Mantém o preview do produto, mas pausa vídeos para economizar bateria.
+              state.mediaNodes.forEach((video) => { try { video.pause(); } catch {} });
+            }
+          }, 14000);
         }, 420);
       }
 
@@ -642,19 +776,13 @@
           ]);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
-          state.products = Array.isArray(data) ? data.filter(p => {
-            if (!p || !(p.title || p.productName) || !(p.affLink || p.productLink)) return false;
-            const raw = String(p.now || '').replace(/[^0-9,.]/g, '');
-            const price = raw.includes(',') ? Number(raw.replace(/\./g, '').replace(',', '.')) : Number(raw);
-            const rating = Number(p.rating || 0);
-            return Number.isFinite(price) && price >= 10 && rating >= 4.5;
-          }) : [];
+          state.products = Array.isArray(data) ? data.filter(validCatalogProduct) : [];
           applySearch();
           // O relógio inicia (ou reinicia) sempre que temos um nextUpdateAt válido,
           // mesmo que o fetch do sync-meta.json de uma rodada específica tenha falhado
           // (nesse caso mantemos contando a partir do último valor conhecido).
           if (state.nextUpdateAt) startCountdown();
-          els.status.textContent = state.products.length ? `${state.products.length} achados disponíveis · links de afiliado ativos.` : 'Catálogo inicial carregado. Sincronização automática em andamento…';
+          els.status.textContent = state.products.length ? `${state.products.length} achados disponíveis · busca ampliada pronta.` : 'Catálogo inicial carregado. Sincronização automática em andamento…';
         } catch (error) {
           console.error('Falha ao carregar produtos:', error);
           els.status.textContent = state.products.length ? 'Mantendo os achados já carregados enquanto a API sincroniza.' : 'Catálogo inicial em carregamento…';
@@ -672,6 +800,7 @@
       }
 
       els.catalogSearch.addEventListener('input', applySearch);
+      els.catalogSearch.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); applySearch(); } });
       els.clearSearch.addEventListener('click', () => {
         els.catalogSearch.value = '';
         applySearch();

@@ -1069,7 +1069,7 @@
     "alisador de cabelo"
   ],
   "lisoLimitPerKeyword": 35,
-  "reviewEnrichmentPerRun": 40,
+  "reviewEnrichmentPerRun": 12,
   "reviewRefreshHours": 12,
   "reviewPageSize": 20,
   "maxReviewsPerProduct": 6,
@@ -1077,5 +1077,11 @@
   "reviewRequestDelayMs": 650,
   "reviewCacheKeepDays": 14,
   "_reviewNote": "As avaliações exibidas no site são somente comentários reais retornados pelo endpoint de ratings da Shopee Brasil; ocultas/vazias são descartadas e o autor anônimo aparece como comprador anônimo. Os vídeos são somente URLs hospedadas pela infraestrutura Shopee/Susercontent e são reproduzidos sem áudio.",
-  "_videoNote": "O scanner pode mostrar vídeos da vitrine do próprio produto e vídeos anexados por compradores nas avaliações, sempre servidos pela infraestrutura Shopee/Susercontent e reproduzidos sem áudio no navegador."
+  "_videoNote": "O scanner pode mostrar vídeos da vitrine do próprio produto e vídeos anexados por compradores nas avaliações, sempre servidos pela infraestrutura Shopee/Susercontent e reproduzidos sem áudio no navegador.",
+  "reviewProviderMode": "optional-authorized-provider",
+  "reviewProviderEnv": "SHOPEE_REVIEW_PROVIDER_URL",
+  "reviewProviderTokenEnv": "SHOPEE_REVIEW_PROVIDER_TOKEN",
+  "searchMode": "catalog-plus-live-serverless",
+  "liveSearchMinChars": 2,
+  "liveSearchLimit": 80
 }

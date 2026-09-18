@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/search.js": {
+      "maxDuration": 20
+    },
+    "api/reviews.js": {
+      "maxDuration": 10
+    }
+  }
+}
