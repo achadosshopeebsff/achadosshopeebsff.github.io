@@ -58,9 +58,9 @@ Nota: o cron do GitHub Actions é "melhor esforço" — em horários de pico da 
 
 Se uma execução da API falhar ou retornar poucos produtos válidos:
 
-- produtos dinâmicos novos, mesmo que poucos, **são sempre publicados** — o bot completa o restante do catálogo com os itens anteriores, em vez de descartar tudo. Antes, se a coleta não batesse 24 produtos válidos, o ciclo inteiro era jogado fora e `products.json`/`links.json` ficavam idênticos ao anterior por tempo indefinido; isso foi corrigido.
-- na primeira execução sem catálogo anterior, os 20 produtos fixos são publicados;
-- `products.json` nunca é zerado por uma falha temporária da Shopee.
+- produtos dinâmicos novos são publicados mesmo que sejam menos que o alvo, desde que passem pelos filtros; o bot não inventa produtos nem reintroduz itens em cooldown apenas para preencher o número.
+- em falha temporária da API, o catálogo anterior só é mantido quando os itens ainda obedecem ao piso de R$10, nota mínima de 4,5 e às regras de mercado/loja disponíveis nos dados.
+- na primeira execução sem catálogo anterior, o fallback fixo é apenas uma contingência; a preferência é sempre a coleta real da API.
 
 ## Por que às vezes o catálogo parece não mudar
 
@@ -95,3 +95,13 @@ Endpoint Brasil:
 A integração usa `productOfferV2` com `keyword`, `sortType`, `listType`, paginação e os campos compatíveis do objeto `ProductOfferV2`, como `itemId`, `productName`, `productLink`, `offerLink`, `imageUrl`, `priceMin`, `priceMax`, `priceDiscountRate`, `sales`, `ratingStar`, `commissionRate`, `commission`, `shopId` e `shopName`.
 
 Referência: Explorer oficial da Shopee Affiliate Open API.
+
+
+## Regras atuais do catálogo
+
+- Preço mínimo: **R$ 10,00**, usando `priceMin` da oferta. Produtos com qualquer variação abaixo desse piso ficam fora.
+- Qualidade: somente produtos com avaliação informada e **4,5 estrelas ou mais**.
+- Mercado: somente links `shopee.com.br`; o filtro de loja aceita tipos Official/Preferred/Preferred Plus (`shopType` 1/2/4) e bloqueia nomes explicitamente internacionais/importadores. A Open API não fornece um campo universal de país/origem do estoque, então essa política é conservadora, mas não é prova física de nacionalidade do estoque.
+- Tendências: keywords dedicadas para produtos virais de vídeo/comércio (Kemei 3 em 1, fone invisível Q10, mini impressora térmica, mini seladora, kits de café da manhã, moda viral, utilidades, beleza e acessórios). Esses termos só descobrem candidatos; o filtro de qualidade continua valendo.
+- Comissão: continuam sendo reservadas vagas para 10%–19,99%, 20%–29,99% e 30%+, sem deixar comissão superar a qualidade do produto.
+- Repetição: o mesmo `itemId` não repete; ofertas equivalentes de lojas diferentes competem por preço, e a mais barata é a única publicada quando a equivalência é confirmada.
