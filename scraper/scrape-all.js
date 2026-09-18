@@ -60,7 +60,7 @@ async function graphql(query) {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `SHA256 Credential=${APP_ID}, Timestamp=${timestamp}, Signature=${signature}`,
-      'User-Agent': 'achadosshopeebsf/6.0'
+      'User-Agent': 'achadosshopeebsf/6.1'
     },
     body,
     signal: AbortSignal.timeout(20000)
@@ -539,7 +539,7 @@ async function searchKeyword(keyword, config, runCount) {
   const pageStart = pickPageStart(config, runCount);
   for (let i = 0; i < pages; i++) {
     const page = pageStart + i;
-    // retries menor aqui (é chamado 130+ vezes por rodada): o objetivo é
+    // retries menor aqui (é chamado 200+ vezes por rodada): o objetivo é
     // absorver picos passageiros de erro 10000/10030 sem estourar o tempo
     // total de execução do workflow.
     const data = await withRateLimitRetry(
@@ -571,7 +571,7 @@ async function topPerforming(config) {
 // Atraso pequeno entre chamadas sequenciais à API da Shopee, só para não estourar
 // o limite de requisições (erro 10030) quando o bot passa por várias keywords.
 // Espaçamento entre chamadas à Shopee para reduzir a chance de rate limit /
-// erro interno [10000] logo na primeira tentativa (132 keywords + retries +
+// erro interno [10000] logo na primeira tentativa (861 keywords + retries +
 // segunda passada já bastam para variedade; não vale a pena arriscar mais
 // falhas só para ganhar alguns segundos de execução).
 const API_CALL_DELAY_MS = 450;
@@ -639,6 +639,19 @@ async function collectDynamicProducts(config, diagnostics, runCount) {
     }
   }
 
+  // Coleta complementar de alta comissão em TODAS as rodadas, independente
+  // do sortType rotativo principal. O resultado ainda passa por qualidade,
+  // deduplicação e pelo limite máximo de participação de comissão no catálogo.
+  try {
+    const highCommissionNodes = await collectHighCommissionProducts(config, diagnostics);
+    for (const node of highCommissionNodes) {
+      const id = String(node.itemId || '');
+      if (id) map.set(id, node);
+    }
+  } catch (error) {
+    diagnostics.errors.push(`high-commission: ${explainShopeeError(error)}`);
+  }
+
   if (config.includeTopPerforming !== false) {
     try {
       const nodes = await topPerforming(config);
@@ -656,6 +669,205 @@ async function collectDynamicProducts(config, diagnostics, runCount) {
   }
 
   return [...map.values()];
+}
+
+
+async function collectHighCommissionProducts(config, diagnostics) {
+  const keywords = Array.isArray(config.highCommissionKeywords)
+    ? config.highCommissionKeywords.filter(Boolean).slice(0, 10)
+    : ['ofertas', 'promocao', 'moda', 'beleza', 'casa', 'cozinha', 'eletronicos', 'fitness'];
+  const limit = Math.max(1, Math.min(config.highCommissionLimitPerKeyword || 30, 100));
+  const nodes = [];
+  diagnostics.highCommissionQueries = 0;
+  diagnostics.highCommissionCandidates = 0;
+
+  // listType 1 prioriza ofertas com maior comissão; sortType 5 também ordena
+  // por comissão. É uma coleta pequena e separada para que uma rodada cujo
+  // sortType principal seja vendas/preço ainda tenha acesso a boas ofertas de
+  // afiliado.
+  for (const keyword of keywords) {
+    try {
+      const data = await withRateLimitRetry(
+        () => graphql(buildSearchQuery({
+          keyword,
+          sortType: 5,
+          page: 1,
+          limit,
+          listType: 1
+        })),
+        { retries: 2, baseDelayMs: 900 }
+      );
+      const found = data?.productOfferV2?.nodes || [];
+      diagnostics.highCommissionQueries++;
+      diagnostics.highCommissionCandidates += found.length;
+      nodes.push(...found);
+    } catch (error) {
+      diagnostics.errors.push(`high-commission "${keyword}": ${explainShopeeError(error)}`);
+    }
+    await sleep(API_CALL_DELAY_MS);
+  }
+
+  return nodes;
+}
+
+// ===== Controle de itens equivalentes / repetidos =====
+// A Shopee pode devolver o mesmo item por lojas diferentes. O itemId resolve
+// repetições exatas, mas não resolve o caso em que duas lojas usam títulos
+// diferentes. Aqui criamos uma assinatura textual conservadora e, quando duas
+// ofertas aparentam representar o mesmo produto, mantemos somente a mais barata.
+// Assim o catálogo continua focado em "um item = uma oportunidade", sem apagar
+// produtos apenas parecidos.
+//
+// Observação: isto é uma heurística de catálogo, não uma identificação por SKU.
+// Para não confundir variações reais (ex.: cabo 1m vs 2m), números e medidas
+// continuam fazendo parte da assinatura.
+const DEDUPE_STOPWORDS = new Set([
+  'a','o','as','os','um','uma','uns','umas','de','da','do','das','dos','em','no','na',
+  'nos','nas','e','ou','para','por','com','sem','ao','aos','à','às','se','que','mais',
+  'novo','nova','novos','novas','super','promoção','promocao','oferta','ofertas',
+  'barato','barata','baratos','baratas','original','originais','premium','melhor',
+  'melhores','frete','envio','imediato','imediata','atacado','varejo','revenda',
+  'unidade','unidades','pc','pcs','peça','peca','peças','pecas','kit'
+]);
+
+function normalizeDedupeText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/×/g, 'x')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function dedupeTokens(value) {
+  const tokens = normalizeDedupeText(value)
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) => !DEDUPE_STOPWORDS.has(token))
+    .filter((token) => token.length >= 2 || /^\d+(?:[a-z]+)?$/.test(token));
+
+  // Mantém uma ocorrência de cada token. Ordenar deixa "A + B + C" equivalente
+  // a "C + A + B" quando a loja apenas reorganiza o título.
+  return [...new Set(tokens)].sort();
+}
+
+function productTitleOf(product) {
+  return product?.productName || product?.itemName || product?.title || '';
+}
+
+function productIdentityKey(product) {
+  const tokens = dedupeTokens(productTitleOf(product));
+  return tokens.slice(0, 18).join('|');
+}
+
+function tokenSimilarity(a, b) {
+  const aa = new Set(dedupeTokens(a));
+  const bb = new Set(dedupeTokens(b));
+  if (!aa.size || !bb.size) return 0;
+  let common = 0;
+  for (const token of aa) if (bb.has(token)) common++;
+  return common / Math.max(1, Math.min(aa.size, bb.size));
+}
+
+function numericTokens(value) {
+  return dedupeTokens(value).filter((token) => /^\d+(?:[a-z]+)?$/.test(token));
+}
+
+function numericMismatch(a, b) {
+  const aa = numericTokens(a);
+  const bb = numericTokens(b);
+  if (!aa.length || !bb.length) {
+    // Um título sem número e outro com "1 unidade" ainda pode ser a mesma oferta.
+    // Para números >1 (quantidade, capacidade, medida etc.), preferimos não unir
+    // sem evidência no outro título.
+    const only = aa.length ? aa : bb;
+    return only.some((token) => {
+      const number = Number.parseInt(token, 10);
+      return Number.isFinite(number) && number > 1;
+    });
+  }
+  return !aa.some((token) => bb.includes(token));
+}
+
+function dedupeEquivalentProducts(products, diagnostics) {
+  const exactByKey = new Map();
+  const buckets = new Map();
+  const kept = [];
+  let droppedExact = 0;
+  let droppedEquivalent = 0;
+
+  const priceOf = (p) => toNumber(p?.priceMin || p?.priceMax);
+
+  for (const p of products) {
+    const id = String(p?.itemId || '');
+    if (!id) continue;
+
+    // 1) Mesmo itemId: nunca duplica, independente da loja.
+    if (exactByKey.has(id)) {
+      droppedExact++;
+      const existingIndex = exactByKey.get(id);
+      const existing = kept[existingIndex];
+      if (priceOf(p) > 0 && (priceOf(existing) <= 0 || priceOf(p) < priceOf(existing))) {
+        kept[existingIndex] = p;
+      }
+      continue;
+    }
+
+    const key = productIdentityKey(p);
+
+    // Títulos muito curtos/genéricos não são bons para deduplicação semântica.
+    if (key.split('|').length >= 4) {
+      const bucketTokens = key.split('|').filter((token) => !/^\d+(?:[a-z]+)?$/.test(token));
+      const firstTokens = bucketTokens.slice(0, 2);
+      const bucketKey = firstTokens.join('|') || key;
+      const indexes = buckets.get(bucketKey) || [];
+
+      let equivalentIndex = -1;
+      for (const idx of indexes) {
+        const candidate = kept[idx];
+        if (!candidate) continue;
+
+        // O preço zero não serve para decidir qual loja vence.
+        // Nesse caso, mantemos a primeira oferta equivalente já encontrada.
+        const titlesMismatch = numericMismatch(productTitleOf(p), productTitleOf(candidate));
+        const similarity = tokenSimilarity(productTitleOf(p), productTitleOf(candidate));
+        if (!titlesMismatch && (similarity >= 0.80 || key === productIdentityKey(candidate))) {
+          equivalentIndex = idx;
+          break;
+        }
+      }
+
+      if (equivalentIndex >= 0) {
+        const existing = kept[equivalentIndex];
+        const currentPrice = priceOf(p);
+        const existingPrice = priceOf(existing);
+
+        // Regra pedida: entre lojas diferentes, só deixa entrar a oferta
+        // equivalente quando ela é realmente mais barata. Se o preço não puder
+        // ser comparado, mantemos a primeira oferta em vez de inventar vantagem.
+        if (currentPrice > 0 && (existingPrice <= 0 || currentPrice < existingPrice)) {
+          kept[equivalentIndex] = p;
+        }
+        droppedEquivalent++;
+        continue;
+      }
+
+      indexes.push(kept.length);
+      buckets.set(bucketKey, indexes);
+    }
+
+    exactByKey.set(id, kept.length);
+    kept.push(p);
+  }
+
+  if (diagnostics) {
+    diagnostics.duplicatesDroppedExact = droppedExact;
+    diagnostics.duplicatesComparedAcrossStores = droppedEquivalent;
+    diagnostics.uniqueCandidatesAfterDedupe = kept.length;
+  }
+
+  return kept;
 }
 
 // Nota mínima quando a Shopee informa avaliação — "produto de qualidade" pedido
@@ -692,7 +904,9 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
   diagnostics.candidatesDroppedMissingFields = beforeFilter - filtered.length;
   diagnostics.candidatesDroppedLowRating = filtered.length - qualityFiltered.length;
 
-  const ranked = qualityFiltered
+  const uniqueQualityFiltered = dedupeEquivalentProducts(qualityFiltered, diagnostics);
+
+  const ranked = uniqueQualityFiltered
     .map((p) => ({
       p,
       score: scoreProduct(p, config),
@@ -700,10 +914,10 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
     }))
     .sort((a, b) => b.score - a.score);
 
-  // Prioridade #1: produtos fora do período de "descanso" (cooldown) no
-  // histórico — é isso que garante produtos sempre novos de verdade.
-  // Só usamos itens em cooldown se realmente faltar variedade fresca suficiente.
-  const fresh = ranked.filter((r) => r.isFresh).slice(0, target * 3);
+  // Regra atual: nunca usar um item que ainda esteja dentro do cooldown.
+  // Se não houver variedade suficiente, o catálogo fica menor em vez de
+  // reapresentar produtos antigos.
+  const fresh = ranked.filter((r) => r.isFresh).slice(0, target * 6);
   const repeatable = ranked.filter((r) => !r.isFresh).slice(0, target * 2);
   diagnostics.freshCandidates = fresh.length;
   diagnostics.repeatableCandidates = repeatable.length;
@@ -713,14 +927,69 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
   const usedIds = new Set();
   let linkFailures = 0;
 
-  async function tryAdd(p) {
+  function commissionTier(p) {
+    const rate = commissionPct(p?.commissionRate);
+    if (rate >= 30) return '30+';
+    if (rate >= 20) return '20-29.99';
+    if (rate >= 10) return '10-19.99';
+    return '';
+  }
+
+  function isHighCommission(p) {
+    return commissionPct(p?.commissionRate) >= 10;
+  }
+
+  const commissionQuotas = config.commissionQuotas || {
+    '10-19.99': 75,
+    '20-29.99': 20,
+    '30+': 5
+  };
+  const maxCommissionShare = Math.min(
+    1,
+    Math.max(0, toNumber(config.maxCommissionShare, 0.25))
+  );
+  const maxHighCommission = Math.floor(target * maxCommissionShare);
+  diagnostics.commissionQuotaTarget = commissionQuotas;
+  diagnostics.maxCommissionShare = maxCommissionShare;
+  diagnostics.maxHighCommissionProducts = maxHighCommission;
+  diagnostics.commissionQuotaFilled = {};
+
+  let selectedHighCommission = 0;
+
+  async function tryAddProduct(p, { enforceCommissionCap = true } = {}) {
     const id = String(p.itemId);
     if (usedIds.has(id)) return false;
+    if (enforceCommissionCap && isHighCommission(p) && selectedHighCommission >= maxHighCommission) {
+      return false;
+    }
+
     const affiliateLink = await generateAffiliateLink(p, config);
-    if (!affiliateLink) { linkFailures++; return false; }
+    if (!affiliateLink) {
+      linkFailures++;
+      return false;
+    }
+
     usedIds.add(id);
     results.push(normalizeProduct(p, affiliateLink));
+    if (isHighCommission(p)) selectedHighCommission++;
     return true;
+  }
+
+  // Primeiro garantimos algumas oportunidades de alta comissão. Essas vagas
+  // são apenas uma parte do catálogo; elas não impedem a entrada de produtos
+  // de baixa comissão quando forem melhores em preço/qualidade/vendas.
+  for (const tier of ['30+', '20-29.99', '10-19.99']) {
+    const quota = Math.min(toNumber(commissionQuotas[tier]), target - results.length, maxHighCommission - selectedHighCommission);
+    if (quota <= 0) continue;
+    let filled = 0;
+
+    for (const { p } of fresh) {
+      if (filled >= quota) break;
+      if (commissionTier(p) !== tier) continue;
+      if (await tryAddProduct(p, { enforceCommissionCap: false })) filled++;
+    }
+
+    diagnostics.commissionQuotaFilled[tier] = filled;
   }
 
   // Vaga garantida por categoria (categoryQuotas em bot-config.json).
@@ -734,26 +1003,28 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
     const quota = Math.min(toNumber(categoryQuotas[category]), target - results.length);
     if (quota <= 0) continue;
     let filled = 0;
-    for (const pool of [fresh, repeatable]) {
+    for (const pool of [fresh]) {
       for (const { p } of pool) {
         if (filled >= quota) break;
         if (inferTag(p.productName) !== category) continue;
-        if (await tryAdd(p)) filled++;
+        if (await tryAddProduct(p)) filled++;
       }
       if (filled >= quota) break;
     }
     diagnostics.categoryQuotaFilled[category] = filled;
   }
 
-  // Preenche o restante do alvo pela pontuação geral (fresh antes de repeatable).
-  for (const pool of [fresh, repeatable]) {
+  // Preenche o restante do alvo pela pontuação geral, somente com produtos frescos.
+  for (const pool of [fresh]) {
     for (const { p } of pool) {
       if (results.length >= target) break;
-      await tryAdd(p);
+      await tryAddProduct(p);
     }
     if (results.length >= target) break;
   }
 
+  diagnostics.highCommissionSelected = selectedHighCommission;
+  diagnostics.highCommissionCapReached = selectedHighCommission >= maxHighCommission && maxHighCommission > 0;
   diagnostics.affiliateLinkFailures = linkFailures;
   diagnostics.freshPublished = results.filter((r) => isFreshEnough(r.itemId, history, runCount, cooldownRuns)).length;
   diagnostics.repeatPublished = results.length - diagnostics.freshPublished;
@@ -833,6 +1104,10 @@ async function main() {
     keywordBatchSize: 200,
     repeatCooldownRuns: 4,
     minRating: 4.0,
+    commissionQuotas: { '10-19.99': 75, '20-29.99': 20, '30+': 5 },
+    maxCommissionShare: 0.25,
+    highCommissionKeywords: ['ofertas', 'promocao', 'moda', 'beleza', 'casa', 'cozinha', 'eletronicos', 'fitness'],
+    highCommissionLimitPerKeyword: 30,
     keywords: [],
     subIds: ['achadosshopeebsf'],
     trendingCategoryBoost: {},
@@ -886,7 +1161,7 @@ async function main() {
       const candidates = await collectDynamicProducts(config, diagnostics, runCount);
       console.log(`\n📊 ${candidates.length} candidatos únicos após coleta.`);
       dynamic = await buildDynamicCatalog(candidates, config, diagnostics, history, runCount);
-      console.log(`✅ ${dynamic.length} produtos dinâmicos (${diagnostics.freshPublished} fora do cooldown de repetição, ${diagnostics.repeatPublished} repetidos por falta de opção fresca).`);
+      console.log(`✅ ${dynamic.length} produtos dinâmicos (${diagnostics.freshPublished} novos; ${diagnostics.repeatPublished} repetidos).`);
     } catch (error) {
       const hint = explainShopeeError(error);
       console.warn(`⚠️ Falha total na coleta dinâmica: ${hint}`);
@@ -923,7 +1198,8 @@ async function main() {
     source = previousIsDynamic ? 'previous-dynamic' : 'previous-fallback';
     console.warn('⚠️ Nenhum produto dinâmico válido nesta rodada; mantendo catálogo anterior por completo até a próxima tentativa.');
   } else {
-    output = fixedAsFallback(fixed).map((p) => ({ ...p, source: 'fixed-fallback' }));
+    const uniqueFixed = dedupeEquivalentProducts(fixed, diagnostics);
+    output = fixedAsFallback(uniqueFixed).map((p) => ({ ...p, source: 'fixed-fallback' }));
     source = 'fixed-fallback';
     console.warn('⚠️ Primeira execução sem retorno suficiente da API; publicando catálogo inicial fixo (temporário, até a próxima rodada trazer produtos reais).');
   }
