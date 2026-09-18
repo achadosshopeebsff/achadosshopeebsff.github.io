@@ -27,6 +27,8 @@ const META_FILE = path.join(ROOT, 'sync-meta.json');
 // de verdade, em vez de só comparar com o ciclo imediatamente anterior.
 const HISTORY_FILE = path.join(ROOT, 'product-history.json');
 const ENDPOINT = 'https://open-api.affiliate.shopee.com.br/graphql';
+const RATINGS_ENDPOINT = 'https://shopee.com.br/api/v2/item/get_ratings';
+const REVIEW_CACHE_FILE = path.join(ROOT, 'review-cache.json');
 
 const APP_ID = process.env.SHOPEE_APP_ID;
 const APP_SECRET = process.env.SHOPEE_APP_SECRET;
@@ -382,6 +384,9 @@ function inferTag(name) {
   // Cozinha
   if (/air ?fryer|panela|liquidificador|processador de alimentos|fatiador|descascador|forma de silicone|torneira|espremedor|utens[ií]lio.*cozinha|balan[cç]a.*cozinha/i.test(n)) return 'Cozinha';
 
+  // Liso & Alisamento — categoria obrigatória para manter uma vitrine permanente de produtos para deixar o cabelo liso.
+  if (/escova alisadora|escova de alisamento|pente alisador|prancha alisadora|chapinha|alisador de cabelo|escova secadora|modelador sem calor|escova rotativa alisadora|prancha de cabelo/i.test(n)) return 'Liso & Alisamento';
+
   // Beleza
   if (/lip ?tint|batom|base l[ií]quida|blush|pincel|maquiagem|secadora|chapinha|s[eé]rum|skincare|corretivo|barbeador|beleza|cabelo|massageador facial|pistola de massagem/i.test(n)) return 'Beleza';
 
@@ -490,6 +495,161 @@ function scoreProduct(p, config) {
     perfectFindBonus + viralBonus + categoryBoost;
 }
 
+function safeShopeeMediaUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    const host = url.hostname.toLowerCase();
+    if (!/^https?:$/.test(url.protocol)) return '';
+    if (host === 'shopee.com.br' || host.endsWith('.shopee.com') || host.endsWith('.susercontent.com')) return url.toString();
+    return '';
+  } catch { return ''; }
+}
+
+function cleanReviewText(value, maxLen = 220) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, maxLen);
+}
+
+function normalizeReview(raw) {
+  if (!raw || raw.is_hidden === true) return null;
+  if (raw.status !== undefined && Number(raw.status) !== 2) return null;
+  const rating = Number(raw.rating_star || 0);
+  const comment = cleanReviewText(raw.comment);
+  if (!(rating >= 4) || !comment) return null;
+  return { author: raw.anonymous ? '' : cleanReviewText(raw.author_username, 80), rating, comment, ctime: Number(raw.ctime || 0), source: 'Shopee' };
+}
+
+function collectReviewVideos(rawRatings) {
+  const urls = [];
+  for (const raw of rawRatings || []) {
+    for (const value of Array.isArray(raw?.rating_videos) ? raw.rating_videos : []) {
+      const safe = safeShopeeMediaUrl(value);
+      if (safe && !urls.includes(safe)) urls.push(safe);
+      if (urls.length >= 4) return urls;
+    }
+  }
+  return urls;
+}
+
+async function fetchShopeeRatings(shopId, itemId, config = {}) {
+  if (!shopId || !itemId) return { reviews: [], videos: [], totalCount: 0 };
+  const limit = Math.max(6, Math.min(Number(config.reviewPageSize || 20), 20));
+  const baseHeaders = { 'Accept': 'application/json, text/plain, */*', 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36', 'Referer': `https://shopee.com.br/product/${shopId}/${itemId}`, 'Origin': 'https://shopee.com.br' };
+  async function requestRatings(filter) {
+    const url = new URL(RATINGS_ENDPOINT);
+    url.searchParams.set('filter', String(filter)); url.searchParams.set('flag', '1'); url.searchParams.set('type', '0');
+    url.searchParams.set('limit', String(limit)); url.searchParams.set('offset', '0');
+    url.searchParams.set('shopid', String(shopId)); url.searchParams.set('itemid', String(itemId));
+    const response = await fetch(url, { headers: baseHeaders, signal: AbortSignal.timeout(Number(config.reviewTimeoutMs || 12000)) });
+    const text = await response.text();
+    if (!response.ok) throw new Error(`Ratings HTTP ${response.status}: ${text.slice(0, 250)}`);
+    try { return JSON.parse(text); } catch { throw new Error('Ratings retornou resposta não-JSON.'); }
+  }
+
+  const json = await requestRatings(0);
+  const ratings = Array.isArray(json?.data?.ratings) ? json.data.ratings : [];
+  let videos = collectReviewVideos(ratings);
+  // Se as 20 avaliações mais recentes não trouxerem vídeo, pede a lista de
+  // avaliações com mídia. Assim o scanner tem mais chance de mostrar os
+  // vídeos reais anexados ao produto, sem inventar/baixar conteúdo externo.
+  if (!videos.length) {
+    try {
+      const mediaJson = await requestRatings(3);
+      videos = collectReviewVideos(mediaJson?.data?.ratings || []);
+    } catch { /* vídeo é complementar; não invalida a avaliação real */ }
+  }
+
+  const reviews = [];
+  for (const raw of ratings) {
+    const review = normalizeReview(raw);
+    if (review && !reviews.some((r) => r.ctime === review.ctime && r.author === review.author && r.comment === review.comment)) reviews.push(review);
+    if (reviews.length >= Number(config.maxReviewsPerProduct || 6)) break;
+  }
+  return { reviews, videos, totalCount: Number(json?.data?.item_rating?.rating_total || json?.data?.total_count || 0) };
+}
+
+async function fetchShopeeProductVideos(shopId, itemId, config = {}) {
+  if (!shopId || !itemId) return [];
+  const url = new URL('https://shopee.com.br/api/v4/item/get');
+  url.searchParams.set('shopid', String(shopId)); url.searchParams.set('itemid', String(itemId));
+  const response = await fetch(url, {
+    headers: {
+      'Accept': 'application/json, text/plain, */*',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36',
+      'Referer': `https://shopee.com.br/product/${shopId}/${itemId}`,
+      'Origin': 'https://shopee.com.br'
+    },
+    signal: AbortSignal.timeout(Number(config.reviewTimeoutMs || 12000))
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`Product media HTTP ${response.status}: ${text.slice(0, 180)}`);
+  let json; try { json = JSON.parse(text); } catch { return []; }
+  const list = Array.isArray(json?.data?.video_info_list) ? json.data.video_info_list : [];
+  const urls = [];
+  for (const entry of list) {
+    const candidates = [
+      entry?.default_format?.url,
+      ...(Array.isArray(entry?.formats) ? entry.formats.map((f) => f?.url) : []),
+      entry?.video_id
+    ];
+    for (const value of candidates) {
+      const safe = safeShopeeMediaUrl(value);
+      if (safe && !urls.includes(safe)) urls.push(safe);
+      if (urls.length >= 4) return urls;
+    }
+  }
+  return urls;
+}
+
+function reviewCacheIsFresh(entry, config) {
+  const hours = Math.max(1, Number(config.reviewRefreshHours || 12));
+  return entry && Number(entry.fetchedAtMs) > Date.now() - hours * 3600000;
+}
+
+async function enrichOutputWithRealReviews(output, config, runCount, diagnostics) {
+  const cache = readJson(REVIEW_CACHE_FILE, {});
+  const perRun = Math.max(0, Math.min(Number(config.reviewEnrichmentPerRun || 40), output.length));
+  const candidates = [];
+  for (let i = 0; i < output.length; i++) {
+    const index = (runCount * Math.max(1, perRun) + i) % output.length;
+    const p = output[index]; if (!p?.shopId || !p?.itemId) continue;
+    const cached = cache[String(p.itemId)];
+    if (reviewCacheIsFresh(cached, config)) {
+      output[index] = { ...p,
+        reviews: cached.reviews || [],
+        reviewVideos: cached.reviewVideos || [],
+        productVideos: cached.productVideos || [],
+        reviewSource: 'Shopee', reviewFetchedAt: cached.fetchedAt || '', reviewCount: cached.totalCount || 0
+      };
+    } else if (candidates.length < perRun) {
+      candidates.push({ index, p });
+    }
+  }
+  diagnostics.reviewCandidates = candidates.length; diagnostics.reviewFetched = 0; diagnostics.reviewErrors = 0;
+  for (const { index, p } of candidates) {
+    try {
+      const ratings = await fetchShopeeRatings(p.shopId, p.itemId, config);
+      let productVideos = [];
+      try { productVideos = await fetchShopeeProductVideos(p.shopId, p.itemId, config); }
+      catch { /* vídeo de vitrine é complementar; review real continua válida */ }
+      const fetchedAt = new Date().toISOString();
+      cache[String(p.itemId)] = { fetchedAt, fetchedAtMs: Date.now(), reviews: ratings.reviews, reviewVideos: ratings.videos, productVideos, totalCount: ratings.totalCount };
+      output[index] = { ...p, reviews: ratings.reviews, reviewVideos: ratings.videos, productVideos, reviewSource: 'Shopee', reviewFetchedAt: fetchedAt, reviewCount: ratings.totalCount };
+      diagnostics.reviewFetched++;
+    } catch (error) {
+      diagnostics.reviewErrors++; diagnostics.errors.push(`reviews ${p.itemId}: ${error?.message || 'erro desconhecido'}`);
+      const cached = cache[String(p.itemId)];
+      if (cached) output[index] = { ...p, reviews: cached.reviews || [], reviewVideos: cached.reviewVideos || [], productVideos: cached.productVideos || [], reviewSource: 'Shopee', reviewFetchedAt: cached.fetchedAt || '', reviewCount: cached.totalCount || 0 };
+    }
+    await sleep(Math.max(450, Number(config.reviewRequestDelayMs || 650)));
+  }
+  const keepMs = Math.max(24, Number(config.reviewCacheKeepDays || 14)) * 86400000; const pruned = {};
+  for (const [key, value] of Object.entries(cache)) if (Number(value?.fetchedAtMs) > Date.now() - keepMs) pruned[key] = value;
+  writeJson(REVIEW_CACHE_FILE, pruned);
+  diagnostics.reviewReadyProducts = output.filter((p) => Array.isArray(p?.reviews) && p.reviews.length).length;
+  diagnostics.reviewVideoProducts = output.filter((p) => (Array.isArray(p?.reviewVideos) && p.reviewVideos.length) || (Array.isArray(p?.productVideos) && p.productVideos.length)).length;
+  return output;
+}
+
 function normalizeProduct(product, affiliateLink) {
   const price = toNumber(product.priceMin || product.priceMax);
   const discount = toNumber(product.priceDiscountRate);
@@ -524,7 +684,13 @@ function normalizeProduct(product, affiliateLink) {
     category1: inferTag(product.productName),
     category2: '',
     category3: '',
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    reviews: [],
+    reviewVideos: [],
+    productVideos: [],
+    reviewSource: '',
+    reviewFetchedAt: '',
+    reviewCount: 0
   };
 }
 
@@ -534,6 +700,7 @@ function fixedAsFallback(fixed, config = {}) {
   return fixed
     .filter((p) => !!p.offerLink)
     .filter((p) => parsePrice(p?.price) >= Number(config.minPrice || 10))
+    .filter((p) => ratingNumber(p?.rating) >= Number(config.minRating || 4.5))
     .filter((p) => {
       const name = p?.shopName || '';
       return !shopNameLooksInternational(name, config);
@@ -696,6 +863,15 @@ async function collectDynamicProducts(config, diagnostics, runCount) {
     }
   }
 
+  // Coleta obrigatória de produtos para cabelo liso/alisamento em TODAS as rodadas.
+  // Os mesmos filtros de preço, qualidade, loja e repetição continuam valendo.
+  try {
+    const lisoNodes = await collectLisoProducts(config, diagnostics);
+    for (const node of lisoNodes) { const id = String(node.itemId || ''); if (id) map.set(id, node); }
+  } catch (error) {
+    diagnostics.errors.push(`liso: ${explainShopeeError(error)}`);
+  }
+
   // Coleta complementar de produtos virais em TODAS as rodadas. Não é um
   // ranking oficial do TikTok; são termos de tendência usados como sementes de
   // descoberta e os resultados ainda precisam passar pelas regras de qualidade.
@@ -741,6 +917,20 @@ async function collectDynamicProducts(config, diagnostics, runCount) {
   return [...map.values()];
 }
 
+
+async function collectLisoProducts(config, diagnostics) {
+  const all = Array.isArray(config?.lisoKeywords) ? config.lisoKeywords.filter(Boolean) : [];
+  const limit = Math.max(1, Math.min(Number(config?.lisoLimitPerKeyword || 35), 50));
+  const nodes = []; diagnostics.lisoQueries = 0; diagnostics.lisoCandidates = 0;
+  for (const keyword of all) {
+    try {
+      const data = await withRateLimitRetry(() => graphql(buildSearchQuery({ keyword, sortType: 2, page: 1, limit })), { retries: 2, baseDelayMs: 900 });
+      const found = data?.productOfferV2?.nodes || []; diagnostics.lisoQueries++; diagnostics.lisoCandidates += found.length; nodes.push(...found);
+    } catch (error) { diagnostics.errors.push(`liso "${keyword}": ${explainShopeeError(error)}`); }
+    await sleep(API_CALL_DELAY_MS);
+  }
+  return nodes;
+}
 
 async function collectViralProducts(config, diagnostics) {
   const all = Array.isArray(config?.viralKeywords) ? config.viralKeywords.filter(Boolean) : [];
@@ -1215,6 +1405,8 @@ async function main() {
     allowUnknownShopType: false,
     allowLegacyPreviousWithoutShopType: true,
     blockedInternationalShopNamePatterns: ['international','importadora','importado','imports','china','japao','japão','usa','united','global','world','mundo mix','temu','aliexpress','shein','shop global','overseas'],
+    lisoKeywords: ['escova alisadora', 'prancha alisadora', 'chapinha profissional', 'pente alisador', 'escova secadora', 'escova de alisamento'],
+    lisoLimitPerKeyword: 35,
     viralKeywords: [],
     viralKeywordsPerRun: 28,
     viralLimitPerKeyword: 50,
@@ -1227,7 +1419,14 @@ async function main() {
     keywords: [],
     subIds: ['achadosshopeebsf'],
     trendingCategoryBoost: {},
-    categoryQuotas: {}
+    categoryQuotas: { 'Liso & Alisamento': 8 },
+    reviewEnrichmentPerRun: 40,
+    reviewRefreshHours: 12,
+    reviewPageSize: 20,
+    maxReviewsPerProduct: 6,
+    reviewTimeoutMs: 12000,
+    reviewRequestDelayMs: 650,
+    reviewCacheKeepDays: 14
   });
   const fixed = readJson(FIXED_FILE, []);
   const previous = readJson(OUTPUT_FILE, []);
@@ -1258,6 +1457,13 @@ async function main() {
     freshPublished: 0,
     repeatPublished: 0,
     affiliateLinkFailures: 0,
+    lisoQueries: 0,
+    lisoCandidates: 0,
+    reviewCandidates: 0,
+    reviewFetched: 0,
+    reviewErrors: 0,
+    reviewReadyProducts: 0,
+    reviewVideoProducts: 0,
     errors: []
   };
 
@@ -1334,6 +1540,12 @@ async function main() {
     output = fixedAsFallback(uniqueFixed, config).map((p) => ({ ...p, source: 'fixed-fallback' }));
     source = 'fixed-fallback';
     console.warn('⚠️ Primeira execução sem retorno suficiente da API; publicando catálogo inicial fixo (temporário, até a próxima rodada trazer produtos reais).');
+  }
+
+  try {
+    output = await enrichOutputWithRealReviews(output, config, runCount, diagnostics);
+  } catch (error) {
+    diagnostics.errors.push(`review-enrichment: ${error?.message || 'erro desconhecido'}`);
   }
 
   const affiliateLinks = output.map((p) => p.affLink).filter(Boolean);
