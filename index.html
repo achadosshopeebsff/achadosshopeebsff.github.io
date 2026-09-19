@@ -64,6 +64,15 @@
     }
     /* disco de fundo: mantém o visual original quando não há vídeo */
     .scanner::before{content:"";position:absolute;inset:0;border-radius:50%;background:var(--bg)}
+    /* foto do produto (a MESMA do cThumbImg) ampliada atrás do botão: translúcida e discreta.
+       Camada própria, independente do vídeo — continua aparecendo mesmo sem vídeo do produto. */
+    .scan-backdrop{
+      position:absolute;inset:-30%;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .9s ease;
+      -webkit-mask-image:radial-gradient(circle closest-side,#000 0,#000 58%,rgba(0,0,0,.45) 76%,transparent 100%);
+              mask-image:radial-gradient(circle closest-side,#000 0,#000 58%,rgba(0,0,0,.45) 76%,transparent 100%);
+    }
+    .scan-backdrop.on{opacity:.24}
+    .scan-backdrop img{display:block;width:100%;height:100%;object-fit:cover;border-radius:50%;filter:blur(1.2px) saturate(1.1) brightness(.75)}
     /* vídeo do produto escaneado: sem som, translúcido, esmaecendo para fora do anel */
     .scan-media{
       position:absolute;inset:-22%;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .8s ease;
@@ -73,10 +82,10 @@
     .scan-media.on{opacity:.42}
     .scan-media video{display:block;width:100%;height:100%;object-fit:cover;border-radius:50%;pointer-events:none;filter:saturate(1.05)}
     @property --btn-a{syntax:'<number>';inherits:false;initial-value:1}
-    .scanner.has-video .scan-btn{--btn-a:.4}
-    .scanner.has-video .scan-btn span{text-shadow:0 1px 12px rgba(0,0,0,.9),0 0 3px rgba(0,0,0,.6)}
-    .scanner.has-video .scan-btn small{text-shadow:0 1px 8px rgba(0,0,0,.95)}
-    .scanner.has-video .scan-btn svg{filter:drop-shadow(0 1px 6px rgba(0,0,0,.8))}
+    .scanner.has-video .scan-btn,.scanner.has-image .scan-btn{--btn-a:.5}
+    .scanner.has-video .scan-btn span,.scanner.has-image .scan-btn span{text-shadow:0 1px 12px rgba(0,0,0,.9),0 0 3px rgba(0,0,0,.6)}
+    .scanner.has-video .scan-btn small,.scanner.has-image .scan-btn small{text-shadow:0 1px 8px rgba(0,0,0,.95)}
+    .scanner.has-video .scan-btn svg,.scanner.has-image .scan-btn svg{filter:drop-shadow(0 1px 6px rgba(0,0,0,.8))}
     .scan-btn{
       position:relative;z-index:1;width:82%;height:82%;border-radius:50%;border:1px solid var(--border);
       background:rgba(27,22,22,var(--btn-a));transition:--btn-a .8s ease;color:var(--text);cursor:pointer;display:flex;flex-direction:column;
@@ -164,6 +173,7 @@
     .instagram-link svg{width:18px;height:18px;flex:none}
     .instagram-link:hover{transform:translateY(-1px);background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.22)}
     .notif.is-dragging{transition:none!important;animation:none!important}
+    a.notif{text-decoration:none;color:var(--text);-webkit-user-drag:none;-webkit-tap-highlight-color:transparent}
 
     /* ===== Notificações flutuantes (avaliações reais) — estilo banner de iPhone, translúcido ===== */
     .notif-layer{position:fixed;z-index:40;top:calc(env(safe-area-inset-top,0px) + 64px);left:0;right:0;margin-inline:auto;width:min(248px,calc(100vw - 24px));height:0;pointer-events:none}
@@ -273,6 +283,10 @@
       <p class="sub">Produtos selecionados automaticamente da Shopee de forma inteligente, priorizando qualidade, boas avaliações e excelentes oportunidades de compra.</p>
 
       <div class="scanner" id="scanner">
+        <!-- Foto do produto (mesma do cThumbImg), ampliada e translúcida, atrás do botão -->
+        <div class="scan-backdrop" id="scanBackdrop" aria-hidden="true">
+          <img id="scanImg" alt="" decoding="async" referrerpolicy="no-referrer" aria-hidden="true">
+        </div>
         <!-- Vídeo do produto atual: SEM SOM, decorativo, fica atrás do botão -->
         <div class="scan-media" id="scanMedia" aria-hidden="true">
           <video id="scanVideo" muted playsinline loop preload="none" tabindex="-1" aria-hidden="true" disablepictureinpicture disableremoteplayback></video>
@@ -370,7 +384,7 @@
         scanner: $('scanner'), scanBtn: $('scanBtn'), card: $('productCard'), again: $('againBtn'),
         grid: $('grid'), status: $('status'), count: $('count'), catalogSearch: $('catalogSearch'), clearSearch: $('clearSearch'),
         nextUpdate: $('nextUpdate'), countdown: $('countdown'), updatedAtLabel: $('updatedAtLabel'),
-        notifLayer: $('notifLayer'), scanMedia: $('scanMedia'), scanVideo: $('scanVideo'), chips: $('chips'),
+        notifLayer: $('notifLayer'), scanMedia: $('scanMedia'), scanVideo: $('scanVideo'), scanBackdrop: $('scanBackdrop'), scanImg: $('scanImg'), chips: $('chips'),
         thumb: $('cThumb'), thumbImg: $('cThumbImg'), thumbEmoji: $('cThumbEmoji'),
         tag: $('cTag'), name: $('cName'), stars: $('cStars'), desc: $('cDesc'),
         old: $('cOld'), now: $('cNow'), off: $('cOff'), cta: $('cCta')
@@ -722,8 +736,40 @@
       // ReferenceError depois de marcar state.busy=true e o botão ficava travado.
       function playMediaFor(product) {
         if (!product) return;
+        setScanBackdropImage(product);
         const ownVideo = state.media[productKey(product)]?.video?.url || '';
         setScanVideo(ownVideo, product);
+      }
+
+      // Foto do produto (a mesma do cThumbImg) ampliada e translúcida atrás do
+      // botão Escanear. Só troca depois que a nova foto carregou, e ignora
+      // respostas atrasadas de um produto anterior.
+      let backdropWant = '';
+      function setScanBackdropImage(product) {
+        const url = resolveProductImage(product);
+        backdropWant = url;
+        if (!url) {
+          els.scanBackdrop.classList.remove('on');
+          els.scanner.classList.remove('has-image');
+          els.scanImg.removeAttribute('src');
+          return;
+        }
+        if (els.scanImg.getAttribute('src') === url && els.scanBackdrop.classList.contains('on')) return;
+        const probe = new Image();
+        probe.referrerPolicy = 'no-referrer';
+        probe.decoding = 'async';
+        probe.onload = () => {
+          if (backdropWant !== url) return;
+          els.scanImg.src = url;
+          els.scanBackdrop.classList.add('on');
+          els.scanner.classList.add('has-image');
+        };
+        probe.onerror = () => {
+          if (backdropWant !== url) return;
+          els.scanBackdrop.classList.remove('on');
+          els.scanner.classList.remove('has-image');
+        };
+        probe.src = url;
       }
 
       function primePersistentVideo() {
@@ -865,13 +911,19 @@
 
       function buildNotif(payload) {
         const { type, product, review } = payload;
-        const el = mk('div', 'notif is-new');
-        el.tabIndex = 0;
-        el.setAttribute('role', 'link');
+        const el = mk('a', 'notif is-new');
         const affiliateUrl = getAffiliateUrl(product);
         const title = String(product?.title || 'Produto Shopee').trim();
         const isAffiliate = affiliateUrl !== '#';
         el.dataset.affiliate = isAffiliate ? 'true' : 'false';
+        // <a> de verdade: passando o mouse/segurando o dedo dá para ver e copiar o link
+        // de afiliado (s.shopee.com.br/…), e abre em NOVA aba, sem tirar a pessoa do site.
+        el.draggable = false;
+        if (isAffiliate) {
+          el.href = affiliateUrl;
+          el.target = '_blank';
+          el.rel = 'nofollow sponsored noopener';
+        }
         const head = mk('div', 'notif-head');
         const icon = mk('img', 'notif-app'); icon.src = 'notif-icon.png'; icon.alt = ''; icon.width = 14; icon.height = 14;
         head.append(icon, mk('span', 'notif-appname', NOTIF_APP_NAME), mk('span', 'notif-time', type === 'review' ? relTime(review?.at) : 'agora'));
@@ -921,9 +973,10 @@
         action.setAttribute('aria-hidden', 'true');
         el.append(productRow, mk('p', 'notif-text', message), action);
         el.setAttribute('aria-label', isAffiliate ? `Abrir ${title} pelo link de afiliado` : `${title} sem link de afiliado disponível`);
-        el.addEventListener('click', () => {
-          if (affiliateUrl === '#') return;
-          // A notificação navega SOMENTE para o link de afiliado validado acima.
+        el.addEventListener('click', (event) => {
+          if (!isAffiliate) { event.preventDefault(); return; }
+          // A navegação é a do próprio <a href=affLink target=_blank>. Aqui só
+          // deixamos o card do mesmo produto aberto no site para quando a pessoa voltar.
           try {
             fillCard(product);
             playMediaFor(product);
@@ -931,7 +984,6 @@
             els.card.setAttribute('aria-hidden', 'false');
             els.again.style.display = 'block';
           } catch {}
-          window.location.assign(affiliateUrl);
         });
         el.addEventListener('keydown', (event) => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -1023,6 +1075,7 @@
       function getReviewPool() {
         const pool = [];
         for (const p of state.products) {
+          if (getAffiliateUrl(p) === '#') continue; // sem link de afiliado, não vira notificação
           const reviews = state.media[productKey(p)]?.reviews;
           if (!Array.isArray(reviews)) continue;
           for (const review of reviews) {
@@ -1036,8 +1089,12 @@
         if (!state.products.length) return null;
         const reviewPool = getReviewPool();
         const lastProductId = state.lastNotificationProductId || '';
-        let productPool = state.products.filter((p) => productKey(p) !== lastProductId);
-        if (!productPool.length) productPool = state.products;
+        const withAffiliate = state.products.filter((p) => getAffiliateUrl(p) !== '#');
+        const discounted = withAffiliate.filter((p) => p.off); // "em promoção" só com desconto real
+        const basePool = discounted.length ? discounted : withAffiliate;
+        if (!basePool.length) return null;
+        let productPool = basePool.filter((p) => productKey(p) !== lastProductId);
+        if (!productPool.length) productPool = basePool;
 
         // Quando houver comentários reais, alterna review/promoção para não deixar
         // a área parada. Sem comentários, todas as rodadas seguem pelo catálogo.
@@ -1198,6 +1255,7 @@
           startNotificationFeed();
           applySearch();
           renderChips();
+          if (!state.backdropStarted && state.nextProduct) { state.backdropStarted = true; setScanBackdropImage(state.nextProduct); }
           // O relógio inicia (ou reinicia) sempre que temos um nextUpdateAt válido,
           // mesmo que o fetch do sync-meta.json de uma rodada específica tenha falhado
           // (nesse caso mantemos contando a partir do último valor conhecido).
