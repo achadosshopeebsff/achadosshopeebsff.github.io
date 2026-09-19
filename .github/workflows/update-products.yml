@@ -52,12 +52,22 @@ jobs:
           SHOPEE_APP_SECRET: ${{ secrets.SHOPEE_APP_SECRET }}
         run: node scrape-all.js
 
+      # Avaliações reais + vídeo de cada produto (melhor esforço). Passo separado
+      # e com continue-on-error DE PROPÓSITO: se a Shopee bloquear essas consultas
+      # (endpoints não oficiais), o catálogo acima já está pronto e é publicado
+      # normalmente — o site só fica sem notificações/vídeo desses produtos.
+      - name: Coletar avaliações reais e vídeos (melhor esforço)
+        continue-on-error: true
+        timeout-minutes: 10
+        run: node scraper/fetch-media.js
+
       - name: Publicar products.json, links.json e relógio
         run: |
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add products.json links.json sync-meta.json product-history.json review-cache.json
+          git add products.json links.json sync-meta.json product-history.json
+          if [ -f product-media.json ]; then git add product-media.json; fi
 
           if git diff --staged --quiet; then
             echo "Nenhuma alteração para publicar."
