@@ -18,7 +18,7 @@ O projeto usa a **Shopee Affiliate Open API (Brasil)** com duas fases:
 5. **Qualidade e preço:** produtos com avaliação informada abaixo de `minRating` (padrão 4.0) são descartados; a pontuação usa escala logarítmica de preço (favorece achados baratos sem excluir itens de ticket maior, como smartphones, se tiverem boa nota/vendas) e dá mais peso à avaliação. Inclui categoria "Smartphones" com keywords dedicadas (`smartphone`, `smartphone barato`, `celular android`, `celular 5g barato`, `smartphone entrada`).
 6. **Erros transitórios da Shopee (`[10000]`/`[10030]`) agora têm nova tentativa automática** (com espera crescente) antes de desistir de uma palavra-chave — a própria Shopee documenta que o erro `10000` "costuma se resolver sozinho", e a forma de resolver sozinho é tentar de novo.
 
-## Cabelo liso (categoria obrigatória)
+## Cabelo liso (categoria com vaga garantida)
 
 Produtos de alisamento — chapinha/prancha alisadora, escova alisadora/secadora, pente alisador, progressiva, alisante, botox/selagem capilar, protetor térmico etc. — têm **vaga garantida em todo ciclo**:
 
@@ -27,6 +27,31 @@ Produtos de alisamento — chapinha/prancha alisadora, escova alisadora/secadora
 - `inferTag()` classifica esses produtos como `Cabelo Liso` (regex específica, para não pegar “lente progressiva”, “prancha de surf”, “alisador de massa” etc.).
 - O produto ainda precisa passar nos filtros de preço (R$ 10+), nota (4,5★+), loja e link afiliado, e **continua valendo o cooldown anti-repetição**. Se a Shopee devolver poucos itens elegíveis em uma rodada, a cota pode ficar abaixo de 30 — isso aparece em `sync-meta.json > diagnostics.mandatoryQuotaFilled`.
 - No site, aparece o filtro **Cabelo liso** logo abaixo da busca (junto com as outras categorias presentes), e o botão *Escanear* respeita o filtro escolhido.
+
+## Produto fixado (kit Belkit Liso Obrigatório)
+
+- “Liso Obrigatório” é a **linha da Belkit**. O kit *Kit Capilar PROFISSIONAL Belkit Liso Obrigatório 03 itens de 1 LITRO (Shampoo, Condicionador, Máscara)* está em `bot-config.json > pinnedProducts` (loja `1343471577`, item `20099888804`, do link `shopee.com.br/…-i.1343471577.20099888804`).
+- Produto fixado entra em **toda rodada, em 1º lugar**, e **ignora o descanso anti-repetição**. Continua passando nos filtros (preço mínimo, nota 4,5+, loja do Brasil) e usa **sempre o link de afiliado da sua conta** (vem da API); nunca um link montado à mão.
+- A busca é por `itemId` e, se falhar, por nome. Se a Shopee não devolver o item (fora do programa de afiliados, sem estoque, nota baixa…), o motivo aparece em `sync-meta.json > diagnostics.pinned` / `pinnedResult`.
+- Para fixar outro produto, copie o bloco em `pinnedProducts` e troque `name`, `itemId` e `shopId` (os números estão no fim do link do produto).
+- Termos da linha (`liso obrigatorio`, `belkit liso obrigatorio`, `kit capilar liso obrigatorio`…) também são buscados em toda rodada, e títulos com “Liso Obrigatório” são classificados como **Cabelo Liso**.
+
+## Eletrônicos, virais, smartphones e caixas de som
+
+- Só foi **acrescentado** (nada removido): +146 termos em `mandatoryKeywords` (fones invisíveis/bluetooth/TWS/ANC, carregadores 120W/GaN/65W, power bank, smartwatch, projetor, TV box, mouse/teclado gamer, webcam, câmera wifi, celulares por modelo…), buscados **em rodízio a toda rodada** (`mandatoryKeywordsPerRun`: 80).
+- Cota reservada: `mandatoryQuotas` → **Eletrônicos 60**, **Caixas de Som 20** (categoria nova; antes ficavam soltas em Eletrônicos), além de **Smartphones 40** (`categoryQuotas`, já existia).
+- Correção da classificação de smartphones: cartão de memória, pendrive/OTG, SSD, microfone de lapela e afins **não contam mais como “Smartphones”** (antes ocupavam as vagas de celular). Foram adicionados mais modelos reais (Galaxy A/M/S, Moto E/Edge/G, Realme, Infinix, Tecno, Xiaomi…).
+
+## Faixas de preço, comissão e qualidade
+
+- **Preço mínimo continua R$ 10.** Diagnóstico do catálogo anterior: 87% entre R$ 10–30 e ~3% acima de R$ 60. Causas: rotação de ordenação com “menor preço” (`[2,5,1,4]`, agora `sortTypeRotation: [2,5,1,2]`) e palavras-chave só de itens baratos.
+- `priceTierQuotas`: vaga **mínima** por faixa — R$ 30–59: 90 · R$ 60–99: 40 · R$ 100–299: 40 · R$ 300–999: 30 · R$ 1.000–2.999: 20 · R$ 3.000+: 10 (230 de 500; o resto, inclusive R$ 10–29, vem da pontuação geral). Quem já entrou por outra regra conta para a cota.
+- `qualityByPriceTier` (portão): R$ 60–299 → nota 4,6+ e 50+ vendas · R$ 300–999 → 4,6+ e 30+ vendas · R$ 1.000+ → 4,7+ e 20+ vendas. Item caro sem histórico de venda **não entra**, por mais comissão que pague.
+- `premiumKeywords` (86 termos: celular, notebook, TV, geladeira, air fryer, games, bike, tênis…) são buscados em rodízio, ordenados por **vendas/relevância**, nunca por preço.
+- A pontuação ganhou a **comissão esperada por venda (R$ = preço × comissão)**, com teto baixo, para favorecer quem paga melhor sem passar por cima de nota e vendas.
+- **Comissão extra 30%+:** `commissionQuotas` → 30%+: **40** · 20–29,99%: **40** · 10–19,99%: 75; teto total de produtos com 10%+: `maxCommissionShare` **35%** (175 de 500). A coleta de comissão alta passou de 8 termos × 30 resultados para 44 termos em rodízio (16 por rodada) × 50 × 2 páginas. Produtos com **20%+ só entram com nota ≥ 4,6 e ≥ 10 vendas** (`highCommissionMinRating` / `highCommissionMinSales`), para não publicar “isca” de vendedor sem histórico.
+- Conferência a cada rodada em `sync-meta.json > diagnostics`: `priceTierFilled`, `commissionQuotaFilled`, `mandatoryQuotaFilled`, `pinnedResult`.
+- Custo: o bot faz mais chamadas à API por rodada (≈ +250). Se a Shopee limitar, o próprio coletor espera e tenta de novo; se ficar pesado, reduza `mandatoryKeywordsPerRun`, `premiumKeywordsPerRun` ou `highCommissionKeywordsPerRun`.
 
 ## Avaliações reais + vídeo no “Escanear”
 
