@@ -103,9 +103,10 @@
     .card.show{opacity:1;transform:none}
     .card-bar{height:3px;background:linear-gradient(90deg,var(--secondary),var(--primary),var(--accent))}
     .card-body{padding:clamp(20px,4vw,30px);text-align:left}
-    .card-top{display:flex;gap:16px;align-items:flex-start}
-    .thumb{flex:0 0 84px;width:84px;height:84px;border-radius:18px;display:grid;place-items:center;overflow:hidden;background:#2a1c18;font-size:28px}
-    .thumb img{width:100%;height:100%;object-fit:cover}
+    .card-top{display:flex;gap:18px;align-items:flex-start}
+    /* Imagem do produto ampliada/estendida: mais destaque sem estourar o card. */
+    .thumb{flex:0 0 clamp(108px,24vw,152px);width:clamp(108px,24vw,152px);height:clamp(108px,24vw,152px);border-radius:22px;display:grid;place-items:center;overflow:hidden;background:#2a1c18;font-size:34px;border:1px solid rgba(255,255,255,.10);box-shadow:0 14px 34px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.08)}
+    .thumb img{width:100%;height:100%;object-fit:cover;object-position:center;border-radius:inherit}
     .card-head{min-width:0;flex:1}
     .tag{display:inline-flex;gap:6px;color:var(--muted);font:600 10px "JetBrains Mono",monospace;letter-spacing:.08em;text-transform:uppercase}
     .tag i{width:6px;height:6px;border-radius:50%;background:var(--card-accent,var(--accent))}
@@ -162,7 +163,7 @@
     /* ===== Notificações flutuantes (avaliações reais) — estilo banner de iPhone, translúcido ===== */
     .notif-layer{position:fixed;z-index:40;top:calc(env(safe-area-inset-top,0px) + 64px);left:0;right:0;margin-inline:auto;width:min(248px,calc(100vw - 24px));height:0;pointer-events:none}
     .notif{
-      position:absolute;left:0;right:0;top:0;--y:0px;--s:1;pointer-events:none;
+      position:absolute;left:0;right:0;top:0;--y:0px;--s:1;pointer-events:auto;cursor:pointer;
       transform:translate3d(0,var(--y),0) scale(var(--s));transform-origin:50% 0;
       transition:transform .65s cubic-bezier(.2,.8,.2,1),opacity .55s ease;
       padding:8px 11px 10px;border-radius:16px;color:var(--text);
@@ -189,6 +190,7 @@
     .notif-name{min-width:0;flex:1;font:600 12px/1.2 Inter,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .notif-stars{flex:none;color:var(--accent);font-size:9.5px;letter-spacing:.5px}
     .notif-text{margin:5px 0 0;font:400 11.5px/1.38 Inter,sans-serif;color:rgba(251,248,238,.88);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .notif:hover{border-color:rgba(255,255,255,.22);box-shadow:0 12px 32px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.13)}
     /* Telas largas: canto direito, fora da coluna central do título/botão */
     @media (min-width:960px){
       .notif-layer{top:84px;left:auto;right:max(14px,calc((100vw - 1080px) / 2 + 24px));margin-inline:0;width:236px}
@@ -201,6 +203,7 @@
     .chip[aria-pressed="true"]{color:var(--text);background:rgba(252,95,2,.2);border-color:rgba(252,95,2,.65)}
     .chip b{font:600 11px "JetBrains Mono",monospace;color:var(--accent)}
     @media (max-width:640px){
+      .thumb{flex-basis:112px;width:112px;height:112px}
       .catalog-policy{display:none}
       .top{top:6px}.hero{padding-top:30px}
       .notif-layer{top:calc(env(safe-area-inset-top,0px) + 72px)}
@@ -281,7 +284,7 @@
             <div class="card-top">
               <div class="thumb" id="cThumb">
                 <span id="cThumbEmoji" aria-hidden="true">🛍️</span>
-                <img id="cThumbImg" width="84" height="84" alt="" hidden decoding="async">
+                <img id="cThumbImg" width="152" height="152" alt="" hidden decoding="async">
               </div>
               <div class="card-head">
                 <div class="tag" id="cTag"><i aria-hidden="true"></i>Shopee</div>
@@ -335,7 +338,7 @@
     (() => {
       'use strict';
 
-      const state = { products: [], viewProducts: [], media: {}, mediaKey: null, tagFilter: '', chipsSig: '', searchQuery: '', lastId: null, busy: false, refreshTimer: null, countdownTimer: null, nextUpdateAt: null, lastSyncAt: null, visibleCount: 0 };
+      const state = { products: [], viewProducts: [], media: {}, mediaKey: null, tagFilter: '', chipsSig: '', searchQuery: '', lastId: null, busy: false, refreshTimer: null, countdownTimer: null, notificationTimer: null, nextUpdateAt: null, lastSyncAt: null, visibleCount: 0, nextNotificationKind: 'review', audioContext: null, audioReady: false };
       // Sem teto artificial: mostramos o catálogo inteiro que o bot publicar.
       // Renderizamos em lotes (scroll incremental) só para não travar o
       // celular jogando centenas de cards no DOM de uma vez só.
@@ -432,11 +435,26 @@
         return p;
       }
 
+      function validHttpsUrl(value) {
+        try { return new URL(String(value || ''), location.href).protocol === 'https:'; }
+        catch { return false; }
+      }
+
+      function resolveProductImage(p) {
+        const direct = String(p?.image || '').trim();
+        if (direct && (direct.startsWith('data:image/') || validHttpsUrl(direct))) return direct;
+        const mediaImage = state.media[productKey(p)]?.image;
+        if (mediaImage && (mediaImage.startsWith('data:image/') || validHttpsUrl(mediaImage))) return mediaImage;
+        return '';
+      }
+
       function setImage(img, url, alt) {
         if (!url) { img.hidden = true; img.removeAttribute('src'); return; }
         img.alt = alt || '';
         img.hidden = false;
         img.loading = 'eager';
+        img.decoding = 'async';
+        img.onerror = () => { img.hidden = true; img.removeAttribute('src'); els.thumbEmoji.hidden = false; };
         img.src = url;
       }
 
@@ -454,8 +472,9 @@
         els.off.hidden = !p.off;
         els.cta.href = p.affLink || p.productLink || '#';
         els.cta.setAttribute('aria-label', `Comprar ${p.title || 'produto'} na Shopee`);
-        if (p.image) { els.thumbEmoji.hidden = true; setImage(els.thumbImg, p.image, p.title || 'Produto'); }
-        else { els.thumbEmoji.hidden = false; els.thumbEmoji.textContent = p.icon || '🛍️'; els.thumbImg.hidden = true; }
+        const imageUrl = resolveProductImage(p);
+        if (imageUrl) { els.thumbEmoji.hidden = true; setImage(els.thumbImg, imageUrl, p.title || 'Produto'); }
+        else { els.thumbEmoji.hidden = false; els.thumbEmoji.textContent = p.icon || '🛍️'; els.thumbImg.hidden = true; els.thumbImg.removeAttribute('src'); }
       }
 
       function preloadImage(url) {
@@ -584,57 +603,103 @@
 
 
       // ===== Vídeo do produto atrás do botão "Escanear" (SEM SOM) =====
-      // Decorativo e translúcido. Só toca o vídeo do produto que está sendo
-      // escaneado agora; se o produto não tem vídeo, o anterior é removido
-      // (nunca fica um vídeo de outro produto na tela).
+      // O vídeo permanece no scanner sempre que existir qualquer vídeo válido no
+      // catálogo. Ao escanear, troca para o vídeo daquele produto; se ele não
+      // tiver vídeo, mantém um vídeo válido de outro achado em vez de apagar o fundo.
       const reduceMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
-      const canPlayVideo = () => !reduceMotion.matches && !(navigator.connection && navigator.connection.saveData);
+      const canPlayVideo = () => !reduceMotion.matches;
       const video = els.scanVideo;
 
       function forceMuted() { video.muted = true; video.defaultMuted = true; video.volume = 0; }
       forceMuted();
+      video.setAttribute('muted', '');
+      video.setAttribute('playsinline', '');
+      video.setAttribute('disablepictureinpicture', '');
+      video.setAttribute('disableremoteplayback', '');
       video.addEventListener('volumechange', () => { if (!video.muted || video.volume > 0) forceMuted(); });
       video.addEventListener('playing', () => { els.scanMedia.classList.add('on'); els.scanner.classList.add('has-video'); });
+      video.addEventListener('loadeddata', () => { if (!video.paused) { els.scanMedia.classList.add('on'); els.scanner.classList.add('has-video'); } });
       video.addEventListener('error', () => { els.scanMedia.classList.remove('on'); els.scanner.classList.remove('has-video'); });
 
-      function setScanVideo(url) {
-        els.scanMedia.classList.remove('on');
-        els.scanner.classList.remove('has-video');
-        if (!url || !canPlayVideo()) {
-          if (video.dataset.src) { video.pause(); video.removeAttribute('src'); video.load(); delete video.dataset.src; }
-          return;
-        }
-        if (video.dataset.src === url) { video.play().catch(() => {}); return; }
-        forceMuted();
-        video.dataset.src = url;
-        video.preload = 'auto';
-        video.src = url;
-        video.play().catch(() => {});
-      }
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden) video.pause();
-        else if (video.dataset.src) video.play().catch(() => {});
-      });
-      if ('IntersectionObserver' in window) {
-        new IntersectionObserver(([entry]) => {
-          if (!video.dataset.src) return;
-          if (entry.isIntersecting) video.play().catch(() => {}); else video.pause();
-        }).observe(els.scanner);
+      function findAnyVideoProduct(excludeId = '') {
+        const candidates = state.products.filter((p) => {
+          if (productKey(p) === excludeId) return false;
+          const url = state.media[productKey(p)]?.video?.url;
+          return !!url && isSafeVideoUrl(url);
+        });
+        return candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null;
       }
 
-      // ===== Notificações flutuantes com avaliações REAIS =====
-      // Só aparecem avaliações que a Shopee devolveu para ESTE produto (ver
-      // scraper/fetch-media.js). Nada é gerado/inventado aqui. O horário mostrado
-      // é o da avaliação original ("há 3 meses"), não "agora", para não sugerir
-      // uma compra ao vivo.
-      const NOTIF_APP_NAME = 'achadosshopeebsff';
-      const NOTIF = { firstDelay: 900, gapPx: 8 };
-      // Telas pequenas: 1 banner por vez (nunca empilha sobre o título).
-      // Telas maiores: até 2 empilhados no canto direito.
-      const notifTiming = () => (window.innerWidth < 640
-        ? { gap: 4600, life: 4400, maxVisible: 1, max: 4 }
-        : { gap: 3200, life: 6400, maxVisible: 2, max: 5 });
-      const notif = { timers: [], active: [] };
+      function isSafeVideoUrl(url) {
+        try {
+          const u = new URL(String(url || ''), location.href);
+          return u.protocol === 'https:' && /\.mp4(?:\?|$)/i.test(u.pathname + u.search);
+        } catch { return false; }
+      }
+
+      function setScanVideo(url, fallbackProduct = null) {
+        let nextUrl = isSafeVideoUrl(url) ? String(url) : '';
+        if (!nextUrl && fallbackProduct) nextUrl = String(state.media[productKey(fallbackProduct)]?.video?.url || '');
+        if (!nextUrl) {
+          const fallback = findAnyVideoProduct();
+          nextUrl = String(state.media[productKey(fallback)]?.video?.url || '');
+        }
+        if (!nextUrl || !canPlayVideo()) {
+          // Não apaga um vídeo que já está tocando só porque o produto novo não
+          // tem mídia. Isso evita o "pisca" e mantém o scanner visualmente vivo.
+          if (video.dataset.src && canPlayVideo()) {
+            forceMuted();
+            video.play().catch(() => {});
+            return;
+          }
+          return;
+        }
+        if (video.dataset.src === nextUrl) {
+          forceMuted();
+          video.play().catch(() => {});
+          return;
+        }
+        forceMuted();
+        els.scanMedia.classList.remove('on');
+        els.scanner.classList.remove('has-video');
+        video.dataset.src = nextUrl;
+        video.preload = 'auto';
+        video.src = nextUrl;
+        video.load();
+        video.play().catch(() => {});
+      }
+
+      function primePersistentVideo() {
+        const first = findAnyVideoProduct();
+        if (first) setScanVideo(state.media[productKey(first)]?.video?.url, first);
+      }
+
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && video.dataset.src) {
+          forceMuted();
+          video.play().catch(() => {});
+        }
+      });
+
+      // Em vez de parar quando o círculo sai alguns pixels da viewport, mantém o
+      // vídeo preparado para voltar instantaneamente quando o usuário retorna.
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(([entry]) => {
+          if (entry.isIntersecting && video.dataset.src) {
+            forceMuted();
+            video.play().catch(() => {});
+          }
+        }, { rootMargin: '120px' }).observe(els.scanner);
+      }
+
+      // ===== Notificações flutuantes: comentários reais + promoções =====
+      // A cada 60 segundos sai UMA notificação, sem empilhar nem interromper o
+      // usuário. Comentários só entram quando existem no product-media.json;
+      // promoções/achados usam o catálogo real e o link de afiliado do produto.
+      const NOTIF_APP_NAME = 'achadosshopeebsf';
+      const NOTIF = { firstDelay: 1200, interval: 60000, life: 8200, gapPx: 8 };
+      const notifTiming = () => ({ gap: 60000, life: 8200, maxVisible: 1, max: 1 });
+      const notif = { active: [] };
       const AVATAR_COLORS = ['#c2410c', '#b45309', '#a21caf', '#0f766e', '#1d4ed8', '#be123c', '#4d7c0f'];
 
       function relTime(sec) {
@@ -654,28 +719,66 @@
         return el;
       }
 
-      function buildNotif(r) {
+      function getAffiliateUrl(product) {
+        const raw = product?.affLink || product?.productLink || '';
+        try {
+          const u = new URL(raw, location.href);
+          return u.protocol === 'https:' ? u.href : '#';
+        } catch { return '#'; }
+      }
+
+      function buildNotif(payload) {
+        const { type, product, review } = payload;
         const el = mk('div', 'notif is-new');
+        el.tabIndex = 0;
+        el.setAttribute('role', 'link');
+        const affiliateUrl = getAffiliateUrl(product);
+        const title = String(product?.title || 'Produto Shopee').trim();
         const head = mk('div', 'notif-head');
         const icon = mk('img', 'notif-app'); icon.src = 'notif-icon.png'; icon.alt = ''; icon.width = 14; icon.height = 14;
-        head.append(icon, mk('span', 'notif-appname', NOTIF_APP_NAME), mk('span', 'notif-time', relTime(r.at)));
+        head.append(icon, mk('span', 'notif-appname', NOTIF_APP_NAME), mk('span', 'notif-time', type === 'review' ? relTime(review?.at) : 'agora'));
 
         const who = mk('div', 'notif-who');
-        const avatar = mk('span', 'notif-avatar', (String(r.user).match(/[A-Za-zÀ-ú0-9]/) || ['C'])[0].toUpperCase());
-        let hash = 0; for (const ch of String(r.user)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+        const displayName = type === 'review' ? String(review?.user || 'Cliente Shopee') : 'Radar de achados';
+        const avatar = mk('span', 'notif-avatar', (displayName.match(/[A-Za-zÀ-ú0-9]/) || ['A'])[0].toUpperCase());
+        let hash = 0; for (const ch of displayName) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
         avatar.style.background = AVATAR_COLORS[hash % AVATAR_COLORS.length];
-        if (r.avatar) {
+        if (type === 'review' && review?.avatar) {
           const img = document.createElement('img');
           img.alt = ''; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
           img.addEventListener('error', () => img.remove());
-          img.src = r.avatar;
+          img.src = review.avatar;
           avatar.appendChild(img);
         }
-        who.append(avatar, mk('span', 'notif-name', r.user));
-        if (r.stars > 0) who.append(mk('span', 'notif-stars', '★'.repeat(r.stars)));
+        who.append(avatar, mk('span', 'notif-name', displayName));
+        if (type === 'review' && Number(review?.stars) > 0) who.append(mk('span', 'notif-stars', '★'.repeat(Math.min(5, Number(review.stars)))));
 
-        el.append(head, who, mk('p', 'notif-text', r.text));
-        el.style.animationDelay = `${(-Math.random() * 4).toFixed(2)}s`;
+        const message = type === 'review'
+          ? `${title}: “${String(review?.text || '').trim()}”`
+          : (product?.off || product?.old
+              ? `⚡ ${title} está em promoção por ${product.now || 'um preço especial'}.`
+              : `🛍️ ${title} apareceu como novo achado por ${product.now || 'um preço especial'}.`);
+
+        el.append(head, who, mk('p', 'notif-text', message));
+        el.setAttribute('aria-label', `Abrir ${title} na Shopee`);
+        el.addEventListener('click', () => {
+          if (affiliateUrl === '#') return;
+          // Atualiza o produto mostrado no scanner antes de seguir para o link afiliado.
+          try {
+            fillCard(product);
+            playMediaFor(product);
+            els.card.classList.add('show');
+            els.card.setAttribute('aria-hidden', 'false');
+            els.again.style.display = 'block';
+          } catch {}
+          window.location.href = affiliateUrl;
+        });
+        el.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            el.click();
+          }
+        });
         return el;
       }
 
@@ -699,37 +802,102 @@
         window.setTimeout(() => n.el.remove(), 800);
       }
 
-      function showNotif(r) {
+      function playNotificationSound() {
+        try {
+          const AudioCtor = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtor) return;
+          if (!state.audioContext) state.audioContext = new AudioCtor();
+          const ctx = state.audioContext;
+          if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+          const now = ctx.currentTime;
+          const master = ctx.createGain();
+          master.gain.setValueAtTime(0.0001, now);
+          master.gain.exponentialRampToValueAtTime(0.045, now + 0.012);
+          master.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+          master.connect(ctx.destination);
+
+          // Dois tons suaves inspirados em sons de notificação móveis, sem copiar
+          // uma gravação proprietária específica.
+          [880, 1174].forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + i * 0.08);
+            osc.connect(master);
+            osc.start(now + i * 0.08);
+            osc.stop(now + 0.18 + i * 0.08);
+          });
+        } catch {}
+      }
+
+      function prepareNotificationAudio() {
+        try {
+          const AudioCtor = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtor || state.audioReady) return;
+          state.audioContext = state.audioContext || new AudioCtor();
+          if (state.audioContext.state === 'suspended') state.audioContext.resume().catch(() => {});
+          state.audioReady = true;
+        } catch {}
+      }
+      window.addEventListener('pointerdown', prepareNotificationAudio, { once: true, passive: true });
+      window.addEventListener('keydown', prepareNotificationAudio, { once: true, passive: true });
+
+      function showNotif(payload) {
         const t = notifTiming();
-        const el = buildNotif(r);
+        [...notif.active].forEach(dismissNotif);
+        const el = buildNotif(payload);
         els.notifLayer.appendChild(el);
         const n = { el, timer: 0 };
-        notif.active.unshift(n);           // mais nova no topo, as anteriores descem e esmaecem
-        while (notif.active.length > t.maxVisible) dismissNotif(notif.active[notif.active.length - 1]);
+        notif.active.unshift(n);
         layoutNotifs();
-        void el.offsetWidth;               // garante o estado inicial antes de animar a entrada
+        void el.offsetWidth;
         requestAnimationFrame(() => el.classList.remove('is-new'));
+        playNotificationSound();
         n.timer = window.setTimeout(() => dismissNotif(n), t.life);
       }
 
-      function stopReviews() {
-        notif.timers.forEach((t) => window.clearTimeout(t));
-        notif.timers = [];
-        [...notif.active].forEach(dismissNotif);
+      function getReviewPool() {
+        const pool = [];
+        for (const p of state.products) {
+          const reviews = state.media[productKey(p)]?.reviews;
+          if (!Array.isArray(reviews)) continue;
+          for (const review of reviews) {
+            if (review?.text) pool.push({ product: p, review });
+          }
+        }
+        return pool;
       }
 
-      function startReviews(reviews) {
-        stopReviews();
-        const t = notifTiming();
-        (reviews || []).slice(0, t.max).forEach((r, i) => {
-          notif.timers.push(window.setTimeout(() => showNotif(r), NOTIF.firstDelay + i * t.gap));
-        });
+      function pickNotificationPayload() {
+        if (!state.products.length) return null;
+        const reviewPool = getReviewPool();
+        const lastProductId = state.lastNotificationProductId || '';
+        let productPool = state.products.filter((p) => productKey(p) !== lastProductId);
+        if (!productPool.length) productPool = state.products;
+
+        // Quando houver comentários reais, alterna review/promoção para não deixar
+        // a área parada. Sem comentários, todas as rodadas seguem pelo catálogo.
+        const wantReview = reviewPool.length && state.nextNotificationKind === 'review';
+        if (wantReview) {
+          const candidate = reviewPool[Math.floor(Math.random() * reviewPool.length)];
+          state.nextNotificationKind = 'promo';
+          state.lastNotificationProductId = productKey(candidate.product);
+          return { type: 'review', product: candidate.product, review: candidate.review };
+        }
+        const product = productPool[Math.floor(Math.random() * productPool.length)];
+        state.nextNotificationKind = reviewPool.length ? 'review' : 'promo';
+        state.lastNotificationProductId = productKey(product);
+        return { type: 'promo', product, review: null };
       }
 
-      function playMediaFor(p) {
-        const m = state.media[productKey(p)] || null;
-        setScanVideo(m && m.video ? m.video.url : '');
-        startReviews(m ? m.reviews : []);
+      function emitNotification() {
+        const payload = pickNotificationPayload();
+        if (payload) showNotif(payload);
+      }
+
+      function startNotificationFeed() {
+        if (state.notificationTimer || !state.products.length) return;
+        window.setTimeout(() => emitNotification(), NOTIF.firstDelay);
+        state.notificationTimer = window.setInterval(emitNotification, NOTIF.interval);
       }
 
       // ===== Avaliações/vídeo publicados pelo bot (product-media.json) =====
@@ -748,7 +916,8 @@
               at: Number(r.at) || 0
             }));
           const url = m.video && typeof m.video.url === 'string' && /^https:\/\//i.test(m.video.url) ? m.video.url : '';
-          if (reviews.length || url) out[id] = { reviews, video: url ? { url } : null };
+          const image = typeof m.image === 'string' && /^(?:https:\/\/|data:image\/)/i.test(m.image) ? m.image : '';
+          if (reviews.length || url || image) out[id] = { reviews, video: url ? { url } : null, image };
         }
         return out;
       }
@@ -860,13 +1029,18 @@
           const syncKey = state.lastSyncAt || 'init';
           if (firstMedia) { state.mediaKey = syncKey; state.media = sanitizeMedia(firstRaw, ids); }
           else if (state.mediaKey !== syncKey) { state.mediaKey = syncKey; state.media = sanitizeMedia(await fetchMediaRaw(), ids); }
+          primePersistentVideo();
+          startNotificationFeed();
           applySearch();
           renderChips();
           // O relógio inicia (ou reinicia) sempre que temos um nextUpdateAt válido,
           // mesmo que o fetch do sync-meta.json de uma rodada específica tenha falhado
           // (nesse caso mantemos contando a partir do último valor conhecido).
           if (state.nextUpdateAt) startCountdown();
-          els.status.textContent = state.products.length ? `${state.products.length} achados disponíveis · links de afiliado ativos.` : 'Catálogo inicial carregado. Sincronização automática em andamento…';
+          const reviewCount = getReviewPool().length;
+          els.status.textContent = state.products.length
+            ? `${state.products.length} achados disponíveis · links de afiliado ativos${reviewCount ? ` · ${reviewCount} avaliações disponíveis` : ''}.`
+            : 'Catálogo inicial carregado. Sincronização automática em andamento…';
         } catch (error) {
           console.error('Falha ao carregar produtos:', error);
           els.status.textContent = state.products.length ? 'Mantendo os achados já carregados enquanto a API sincroniza.' : 'Catálogo inicial em carregamento…';
@@ -891,7 +1065,6 @@
       });
       els.scanBtn.addEventListener('click', reveal, { passive: true });
       els.again.addEventListener('click', () => {
-        stopReviews();
         els.card.classList.remove('show');
         els.card.setAttribute('aria-hidden','true');
         window.setTimeout(reveal, 160);
