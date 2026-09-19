@@ -18,6 +18,33 @@ O projeto usa a **Shopee Affiliate Open API (Brasil)** com duas fases:
 5. **Qualidade e preço:** produtos com avaliação informada abaixo de `minRating` (padrão 4.0) são descartados; a pontuação usa escala logarítmica de preço (favorece achados baratos sem excluir itens de ticket maior, como smartphones, se tiverem boa nota/vendas) e dá mais peso à avaliação. Inclui categoria "Smartphones" com keywords dedicadas (`smartphone`, `smartphone barato`, `celular android`, `celular 5g barato`, `smartphone entrada`).
 6. **Erros transitórios da Shopee (`[10000]`/`[10030]`) agora têm nova tentativa automática** (com espera crescente) antes de desistir de uma palavra-chave — a própria Shopee documenta que o erro `10000` "costuma se resolver sozinho", e a forma de resolver sozinho é tentar de novo.
 
+## Cabelo liso (categoria obrigatória)
+
+Produtos de alisamento — chapinha/prancha alisadora, escova alisadora/secadora, pente alisador, progressiva, alisante, botox/selagem capilar, protetor térmico etc. — têm **vaga garantida em todo ciclo**:
+
+- `bot-config.json > mandatoryKeywords` (40 termos): buscados em **toda execução** (`mandatoryKeywordsPerRun` por vez, girando termos, páginas e `sortType`), fora da rotação em lotes das outras keywords.
+- `bot-config.json > mandatoryQuotas`: `"Cabelo Liso": 30` — essas vagas são preenchidas **antes** das cotas de comissão/categoria. Para aumentar/diminuir, mude o número.
+- `inferTag()` classifica esses produtos como `Cabelo Liso` (regex específica, para não pegar “lente progressiva”, “prancha de surf”, “alisador de massa” etc.).
+- O produto ainda precisa passar nos filtros de preço (R$ 10+), nota (4,5★+), loja e link afiliado, e **continua valendo o cooldown anti-repetição**. Se a Shopee devolver poucos itens elegíveis em uma rodada, a cota pode ficar abaixo de 30 — isso aparece em `sync-meta.json > diagnostics.mandatoryQuotaFilled`.
+- No site, aparece o filtro **Cabelo liso** logo abaixo da busca (junto com as outras categorias presentes), e o botão *Escanear* respeita o filtro escolhido.
+
+## Avaliações reais + vídeo no “Escanear”
+
+Ao tocar em **Escanear**:
+
+- **Vídeo do produto** toca **sem som**, translúcido, atrás do botão (esmaece para fora do anel). Se o produto não tem vídeo, nada aparece; nunca fica vídeo de outro produto. Não toca com *reduzir movimento* ativado nem no modo *economia de dados*.
+- **Avaliações reais** do produto aparecem como banners pequenos, translúcidos, flutuando e sumindo (`ACHADOSSHOPEEBSFF` + perfil + estrelas + comentário). Em telas pequenas 1 por vez, no topo; em telas ≥ 960px até 2 no canto direito. O horário mostrado é o **da avaliação original** (“há 3 meses”), não “agora”, para não sugerir compra ao vivo.
+- O *Escanear* prefere (~80%) produtos que têm avaliações/vídeo coletados.
+
+**De onde vêm os dados (importante):** a Shopee Affiliate Open API **não** traz avaliações nem vídeo. O script `scraper/fetch-media.js` (rodado pelo workflow depois do catálogo, com `continue-on-error`) consulta os endpoints públicos que a própria página do produto usa e grava `product-media.json`. Esses endpoints **não são oficiais** e a Shopee pode bloquear/alterar — principalmente para IPs de datacenter como o do GitHub Actions. Por isso:
+
+- **Nada é inventado.** Só entra o que a Shopee devolveu, para aquele `itemId`: comentários com texto próprio (mín. 15 caracteres), sem links/telefone/contato, sem duplicata, nota ≥ `media.minReviewStars` (padrão 4). Nome e foto do perfil são os que a Shopee já expõe na avaliação (a Shopee mascara o nome de quem avalia como anônimo). Para não usar fotos de perfil: `media.includeAvatars: false`.
+- **Sem bypass.** Requisições sequenciais e espaçadas (`requestDelayMs`), sem cookies/login e sem tentar contornar proteção anti-robô. Se vierem `blockedStreakLimit` bloqueios seguidos (403/429/captcha/rede), o script **para** sozinho.
+- **Sem dados = sem efeito.** Produto sem avaliações/vídeo coletados simplesmente não mostra notificações/vídeo; o resto do site funciona igual.
+- **Como saber se está funcionando:** abra `product-media.json > diagnostics` (`withReviews`, `withVideo`, `blockedResponses`, `stoppedEarly`, `lastError`). Se `stoppedEarly` for `"blocked"`, a Shopee está bloqueando o servidor do GitHub. Nesse caso dá para rodar `node scraper/fetch-media.js` numa máquina com IP residencial brasileiro e commitar o `product-media.json` — mas o catálogo troca a cada ciclo, então o resultado só vale para os produtos que estiverem publicados naquele momento.
+- **Aviso:** consultar esses endpoints pode não estar de acordo com os Termos da Shopee. O risco é seu; se preferir, desligue com `"media": { "enabled": false }` em `bot-config.json`.
+- Cobertura por rodada: `media.maxProductsPerRun` (160) dentro de `media.timeBudgetSeconds` (420 s), priorizando **Cabelo Liso** e depois os mais vendidos.
+
 ## Categorias e keywords (atualizado em setembro/2026)
 
 O `bot-config.json` traz **861 keywords** organizadas pelas 10 categorias de maior consumo/GMV na Shopee Brasil (relatório de tendências fornecido pelo dono do site), para o bot buscar sempre esses produtos:
@@ -77,6 +104,9 @@ Se uma execução da API falhar ou retornar poucos produtos válidos:
 - `bot-config.json`: palavras-chave, quantidade, ranking, frequência, cooldown de repetição e rotação de página.
 - `sync-meta.json`: relógio da sincronização + diagnóstico detalhado de cada execução.
 - `scraper/scrape-all.js`: coletor + ranking + geração/preservação dos links afiliados.
+- `scraper/fetch-media.js`: coleta (melhor esforço) de avaliações reais e vídeo dos produtos publicados.
+- `product-media.json`: avaliações + vídeo por `itemId` (lido pelo site) e `diagnostics` da coleta.
+- `logo-sm.png` / `notif-icon.png`: versões leves da logo (nav) e do ícone usado nas notificações. `logo.png` (1,8 MB) foi mantida como original.
 
 ## Secrets do GitHub
 
@@ -105,37 +135,3 @@ Referência: Explorer oficial da Shopee Affiliate Open API.
 - Tendências: keywords dedicadas para produtos virais de vídeo/comércio (Kemei 3 em 1, fone invisível Q10, mini impressora térmica, mini seladora, kits de café da manhã, moda viral, utilidades, beleza e acessórios). Esses termos só descobrem candidatos; o filtro de qualidade continua valendo.
 - Comissão: continuam sendo reservadas vagas para 10%–19,99%, 20%–29,99% e 30%+, sem deixar comissão superar a qualidade do produto.
 - Repetição: o mesmo `itemId` não repete; ofertas equivalentes de lojas diferentes competem por preço, e a mais barata é a única publicada quando a equivalência é confirmada.
-
-
-## Novos filtros e experiência do scanner (v3.1)
-
-- Produtos dinâmicos com preço mínimo de R$ 10,00 e avaliação mínima de 4,5.
-- Bloco obrigatório de descoberta para produtos de cabelo liso/alisamento (escova alisadora, prancha, chapinha, pente alisador e similares).
-- Busca contínua por produtos virais e termos de tendência, sempre subordinada aos filtros de qualidade, preço, loja e repetição.
-- Ao escanear, o site pode mostrar pequenas notificações com comentários reais retornados pela área de avaliações da Shopee, sem fabricar nomes ou textos. Autores anônimos continuam anônimos.
-- Vídeos do próprio produto e vídeos anexados às avaliações podem aparecer atrás do scanner; o navegador os reproduz sempre sem áudio (`muted`, `volume=0`, `playsInline`).
-- Avaliações e vídeos são armazenados em `review-cache.json` e renovados de forma rotativa para evitar excesso de requisições.
-
-> Observação: a Affiliate Open API fornece os dados do catálogo, mas os detalhes públicos de avaliações/vídeos são obtidos separadamente dos endpoints públicos da Shopee. O funcionamento desses endpoints pode mudar por decisão da plataforma.
-
-## Busca ampliada em tempo real (V4)
-
-A página continua compatível com GitHub Pages, mas GitHub Pages é hospedagem estática: ela não executa a `productOfferV2` com o Secret no navegador. Por isso, `index.html` tenta `/api/search` quando a busca tem 2+ caracteres. O arquivo `api/search.js` é uma função serverless compatível com Vercel e mantém `SHOPEE_APP_ID`/`SHOPEE_APP_SECRET` somente no servidor.
-
-Quando hospedado em Vercel (ou atrás de uma infraestrutura serverless equivalente), a busca combina o catálogo local com novos resultados da Shopee Affiliate Open API, aplica R$10+, nota 4,5+, `shopee.com.br`, tipos de loja 1/2/4, bloqueio de nomes explicitamente internacionais e deduplicação por produto/preço. O link retornado é `offerLink` da API. A busca não fica limitada aos 500 itens publicados no catálogo.
-
-## Avaliações e vídeos reais
-
-A Shopee Affiliate Open API documenta campos de produto/comissão, mas não publica nessa API a lista individual de comentários. Os endpoints internos da página Shopee que o projeto antigo consultava estão sujeitos ao anti-bot 90309999; por isso a V4 **não tenta mais burlar ou repetir essas chamadas**. Isso elimina a rajada de erros HTTP 403 do `sync-meta.json`.
-
-O site só exibe comentários/vídeos quando eles chegam pelo cache (`review-cache.json`) ou por um `SHOPEE_REVIEW_PROVIDER_URL` explicitamente configurado pelo operador, que deve devolver dados reais e autorizados. Nenhum nome, perfil, comentário ou vídeo é inventado. Sem dados reais, o scanner mostra apenas a imagem translúcida do produto em vez de fingir um vídeo.
-
-### Secrets adicionais opcionais
-
-- `SHOPEE_REVIEW_PROVIDER_URL`
-- `SHOPEE_REVIEW_PROVIDER_TOKEN`
-- `ALLOWED_ORIGIN` (opcional para proteger a função de busca)
-
-### Busca em GitHub Pages
-
-Em GitHub Pages puro, a função `/api/search` não é executada. Nesse caso a busca continua funcionando no catálogo publicado, sem expor o Secret, e a busca ao vivo fica disponível assim que o mesmo projeto for hospedado em uma plataforma serverless como Vercel.

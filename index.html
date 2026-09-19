@@ -48,61 +48,54 @@
     .nav-links{display:flex;gap:4px;color:var(--muted);font-size:14px}
     .nav-links a{text-decoration:none;padding:9px 14px;border-radius:999px}
     .nav-links a:hover{background:rgba(255,255,255,.06);color:var(--text)}
-    .hero{text-align:center;padding:48px 0 24px}
+    .hero{text-align:center;padding:48px 0 24px;position:relative;overflow-x:clip}
     .eyebrow{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;color:var(--accent);font:600 11px/1 "JetBrains Mono",monospace;letter-spacing:.1em;text-transform:uppercase}
     .live{width:7px;height:7px;border-radius:50%;background:var(--accent)}
     h1{margin:18px 0;font:800 clamp(36px,7vw,60px)/1.03 "Space Grotesk",sans-serif;letter-spacing:-.03em}
     .grad{color:var(--primary)}
     .sub{max-width:600px;margin:0 auto 42px;color:var(--muted);font-size:clamp(15px,2vw,17px);line-height:1.65}
-    .scanner{width:min(300px,78vw);aspect-ratio:1;margin:0 auto 24px;position:relative;display:grid;place-items:center;isolation:isolate}
-    .scan-ambient{position:absolute;inset:-34px;border-radius:50%;z-index:0;pointer-events:none;background:radial-gradient(circle,rgba(252,95,2,.16),rgba(252,95,2,.035) 44%,transparent 70%);filter:blur(14px);opacity:0;transform:scale(.92);transition:opacity .45s ease,transform .6s ease}
-    .scanning .scan-ambient,.scanner.has-scan-media .scan-ambient{opacity:1;transform:scale(1)}
-    .scan-media-wall{position:absolute;inset:-88px;z-index:0;pointer-events:none;opacity:0;overflow:hidden;border-radius:58px;transition:opacity .45s ease;mask-image:radial-gradient(circle,black 40%,transparent 84%);-webkit-mask-image:radial-gradient(circle,black 40%,transparent 84%)}
-    .scanning .scan-media-wall,.scanner.has-scan-media .scan-media-wall{opacity:.34}
-    .scan-media-tile{position:absolute;width:88px;height:124px;border-radius:22px;overflow:hidden;filter:saturate(.82) blur(.3px);box-shadow:0 16px 44px rgba(0,0,0,.34);border:1px solid rgba(255,255,255,.14);background:#171313;will-change:transform,opacity;backdrop-filter:blur(7px)}
-    .scan-media-tile:nth-child(1){left:1%;top:9%;transform:rotate(-10deg) scale(.94)}
-    .scan-media-tile:nth-child(2){right:1%;top:3%;transform:rotate(9deg) scale(.96)}
-    .scan-media-tile:nth-child(3){left:8%;bottom:-4%;transform:rotate(7deg) scale(.9)}
-    .scan-media-tile:nth-child(4){right:9%;bottom:2%;transform:rotate(-8deg) scale(.9)}
-    .scan-media-tile video{width:100%;height:100%;object-fit:cover;opacity:.74}
-    .scan-media-shade{position:absolute;inset:0;background:radial-gradient(circle,rgba(16,7,8,.06),rgba(16,7,8,.78));backdrop-filter:blur(1.5px)}
-    .scan-product-preview{position:absolute;inset:18%;z-index:1;display:grid;place-items:center;pointer-events:none;opacity:0;transform:scale(.84) translateY(8px);transition:opacity .45s ease,transform .65s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 18px 35px rgba(0,0,0,.3));border-radius:34px}
-    .scanner.has-scan-media .scan-product-preview,.scanning .scan-product-preview{opacity:.25;transform:scale(1) translateY(0)}
-    .scan-product-preview img{width:100%;height:100%;max-width:none;object-fit:contain;opacity:.78;mix-blend-mode:screen;filter:saturate(.9) contrast(.96) blur(.1px)}
-    .scan-product-glow{position:absolute;inset:12%;border-radius:32px;background:radial-gradient(circle,rgba(252,176,10,.2),transparent 68%);filter:blur(8px);z-index:-1}
-    .ring{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 180deg,var(--secondary),var(--primary),var(--accent),var(--secondary));z-index:2;opacity:.98}
-    .ring::after{content:"";position:absolute;inset:4px;border-radius:50%;background:radial-gradient(circle at 50% 42%,rgba(27,22,22,.76),rgba(16,7,8,.96) 68%);box-shadow:inset 0 0 35px rgba(0,0,0,.34)}
-    .scan-btn{position:relative;z-index:4;width:78%;height:78%;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(27,22,22,.70);color:var(--text);cursor:pointer;display:grid;place-items:center;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 18px 50px rgba(0,0,0,.24);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
-    .scan-btn:hover{transform:translateY(-1px);background:rgba(36,31,31,.74)}
-    .scan-btn:active{transform:scale(.985)}
-    .scan-btn:disabled{opacity:.82;cursor:wait}
-    .scan-btn-orb{position:absolute;width:44%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(252,95,2,.19),transparent 68%);filter:blur(3px);transform:translateY(-8px)}
-    .scan-btn-content{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;text-align:center}
-    .scan-btn svg{width:28px;height:28px;stroke:var(--accent);filter:drop-shadow(0 4px 10px rgba(252,176,10,.2))}
-    .scan-btn strong{font:800 18px "Space Grotesk",sans-serif;letter-spacing:-.02em}
-    .scan-btn small{font:500 9px "JetBrains Mono",monospace;color:rgba(255,255,255,.58);letter-spacing:.08em;text-transform:uppercase}
+    .scanner{width:min(224px,68vw);aspect-ratio:1;margin:0 auto 24px;position:relative;display:grid;place-items:center}
+    .ring{
+      position:absolute;inset:0;border-radius:50%;
+      background:conic-gradient(var(--secondary),var(--primary),var(--accent),var(--secondary));
+      /* só a borda de 3px: o miolo fica vazado para o vídeo do produto aparecer atrás do botão */
+      -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2px));
+              mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2px));
+    }
+    /* disco de fundo: mantém o visual original quando não há vídeo */
+    .scanner::before{content:"";position:absolute;inset:0;border-radius:50%;background:var(--bg)}
+    /* vídeo do produto escaneado: sem som, translúcido, esmaecendo para fora do anel */
+    .scan-media{
+      position:absolute;inset:-22%;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .8s ease;
+      -webkit-mask-image:radial-gradient(circle closest-side,#000 0,#000 66%,rgba(0,0,0,.45) 82%,transparent 100%);
+              mask-image:radial-gradient(circle closest-side,#000 0,#000 66%,rgba(0,0,0,.45) 82%,transparent 100%);
+    }
+    .scan-media.on{opacity:.42}
+    .scan-media video{display:block;width:100%;height:100%;object-fit:cover;border-radius:50%;pointer-events:none;filter:saturate(1.05)}
+    @property --btn-a{syntax:'<number>';inherits:false;initial-value:1}
+    .scanner.has-video .scan-btn{--btn-a:.4}
+    .scanner.has-video .scan-btn span{text-shadow:0 1px 12px rgba(0,0,0,.9),0 0 3px rgba(0,0,0,.6)}
+    .scanner.has-video .scan-btn small{text-shadow:0 1px 8px rgba(0,0,0,.95)}
+    .scanner.has-video .scan-btn svg{filter:drop-shadow(0 1px 6px rgba(0,0,0,.8))}
+    .scan-btn{
+      position:relative;z-index:1;width:82%;height:82%;border-radius:50%;border:1px solid var(--border);
+      background:rgba(27,22,22,var(--btn-a));transition:--btn-a .8s ease;color:var(--text);cursor:pointer;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:8px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)
+    }
+    .scan-btn:hover{transform:translateY(-1px)}
+    .scan-btn:active{transform:scale(.98)}
+    .scan-btn:disabled{opacity:.7;cursor:wait}
+    .scan-btn svg{width:28px;height:28px;stroke:var(--accent)}
+    .scan-btn span{font:700 15px "Space Grotesk",sans-serif}
+    .scan-btn small{font:500 10px "JetBrains Mono",monospace;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
     .scanning .ring{animation:spin .8s linear infinite}
-    .scanning .scan-product-preview{animation:scanPreviewPulse 1.15s ease-in-out infinite alternate}
     @keyframes spin{to{transform:rotate(360deg)}}
-    @keyframes scanPreviewPulse{from{transform:scale(1) translateY(0);opacity:.22}to{transform:scale(1.04) translateY(-4px);opacity:.32}}
     .status{min-height:24px;color:var(--muted);font-size:13px}
     .next-update{width:min(440px,100%);margin:12px auto 26px;padding:12px 16px;border-radius:16px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;text-align:center}
     .next-update-label{font:700 9px "JetBrains Mono",monospace;color:var(--muted);letter-spacing:.08em}
     .next-update strong{font:800 18px "JetBrains Mono",monospace;color:var(--accent);min-width:62px}
     .next-update-sub{width:100%;font-size:11px;color:var(--muted)}
-    .reveal-stage{width:min(620px,100%);margin:12px auto 0;position:relative}
-    .review-feed{position:absolute;inset:-18% -28%;pointer-events:none;z-index:7;overflow:visible;border-radius:32px}
-    .review-toast{position:absolute;right:0;width:min(260px,74vw);padding:9px 11px;border-radius:16px;background:rgba(255,255,255,.085);border:1px solid rgba(255,255,255,.12);box-shadow:0 14px 40px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.07);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);opacity:0;transform:translate3d(28px,0,0) scale(.97);animation:reviewToastIn .42s cubic-bezier(.2,.8,.2,1) forwards,reviewToastOut .55s ease-in forwards;animation-delay:0s,4.4s}
-    .review-toast-head{display:flex;align-items:center;gap:8px;margin-bottom:5px}
-    .review-avatar{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;background:rgba(252,95,2,.28);color:#fff;font:800 10px "JetBrains Mono",monospace;border:1px solid rgba(255,255,255,.16)}
-    .review-meta{min-width:0;display:flex;flex-direction:column;gap:1px}
-    .review-brand{font:800 8px/1.1 "JetBrains Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);opacity:.95}
-    .review-user{font:700 10px/1.1 "Inter",sans-serif;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .review-stars{margin-left:auto;color:var(--accent);font-size:10px;white-space:nowrap}
-    .review-comment{margin:0;color:rgba(255,255,255,.84);font-size:11px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-    .review-source{margin-top:5px;color:rgba(255,255,255,.46);font:500 8px "JetBrains Mono",monospace}
-    @keyframes reviewToastIn{to{opacity:1;transform:translate3d(0,0,0) scale(1)}}
-    @keyframes reviewToastOut{to{opacity:0;transform:translate3d(24px,-8px,0) scale(.96)}}
+    .reveal-stage{width:min(620px,100%);margin:12px auto 0}
     .card{
       opacity:0;transform:translateY(10px);transition:opacity .22s ease,transform .22s ease;
       overflow:hidden;border-radius:26px
@@ -135,9 +128,6 @@
     .catalog-search button{border:0;background:transparent;color:var(--muted);cursor:pointer;border-radius:10px;padding:8px;font-weight:700}
     .catalog-search button:hover{background:rgba(255,255,255,.06);color:var(--text)}
     .search-hint{margin:8px 2px 0;color:var(--muted);font-size:11px}
-    .search-hint strong{color:rgba(255,255,255,.82);font-weight:700}
-    .live-badge{display:inline-flex;align-items:center;gap:5px;margin-left:6px;color:var(--accent);font:700 9px "JetBrains Mono",monospace;letter-spacing:.06em;text-transform:uppercase}
-    .live-badge i{width:5px;height:5px;border-radius:50%;background:currentColor;box-shadow:0 0 10px currentColor}
 .catalog-policy{font-size:10px;font-weight:800;letter-spacing:.04em;color:var(--muted);white-space:nowrap;padding:6px 8px;border:1px solid rgba(255,255,255,.08);border-radius:999px}
     .empty-search{grid-column:1/-1;padding:26px;text-align:center;color:var(--muted)}
     .section-head h2{margin:0;font:700 23px "Space Grotesk",sans-serif}.section-head span{color:var(--muted);font:500 11px "JetBrains Mono",monospace}
@@ -169,13 +159,51 @@
     footer p{max-width:620px;margin:0 auto;color:var(--muted);font-size:12px;line-height:1.7}
     .badge{display:inline-flex;gap:7px;align-items:center;color:var(--shopee,var(--primary));font:600 11px "JetBrains Mono",monospace;text-transform:uppercase;margin-bottom:14px}
     .credit{margin-top:14px;color:var(--muted);font:700 12px "Space Grotesk",sans-serif}
+    /* ===== Notificações flutuantes (avaliações reais) — estilo banner de iPhone, translúcido ===== */
+    .notif-layer{position:fixed;z-index:40;top:calc(env(safe-area-inset-top,0px) + 64px);left:0;right:0;margin-inline:auto;width:min(248px,calc(100vw - 24px));height:0;pointer-events:none}
+    .notif{
+      position:absolute;left:0;right:0;top:0;--y:0px;--s:1;pointer-events:none;
+      transform:translate3d(0,var(--y),0) scale(var(--s));transform-origin:50% 0;
+      transition:transform .65s cubic-bezier(.2,.8,.2,1),opacity .55s ease;
+      padding:8px 11px 10px;border-radius:16px;color:var(--text);
+      background:rgba(34,27,27,.46);
+      -webkit-backdrop-filter:blur(18px) saturate(1.7);backdrop-filter:blur(18px) saturate(1.7);
+      border:1px solid rgba(255,255,255,.13);
+      box-shadow:0 10px 28px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.1);
+      animation:notifFloat 4.6s ease-in-out infinite alternate;
+    }
+    /* opacidade e blur ficam no MESMO elemento (opacidade em um pai desligaria o backdrop-filter do filho) */
+    .notif[data-d="0"]{opacity:1}
+    .notif[data-d="1"]{opacity:.55}
+    .notif[data-d="2"]{opacity:.35}
+    .notif.is-new{opacity:0;transform:translate3d(0,calc(var(--y) - 22px),0) scale(.94)}
+    .notif.is-leaving{opacity:0;transform:translate3d(0,calc(var(--y) - 14px),0) scale(.96)}
+    @keyframes notifFloat{from{translate:0 0}to{translate:0 -4px}}
+    .notif-head{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+    .notif-app{width:14px;height:14px;border-radius:4px;object-fit:cover;flex:none}
+    .notif-appname{flex:1;min-width:0;font:600 9px/1 Inter,sans-serif;letter-spacing:.07em;text-transform:uppercase;color:rgba(251,248,238,.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .notif-time{font:500 9.5px/1 Inter,sans-serif;color:rgba(251,248,238,.5);white-space:nowrap}
+    .notif-who{display:flex;align-items:center;gap:7px}
+    .notif-avatar{position:relative;flex:none;width:20px;height:20px;border-radius:50%;overflow:hidden;display:grid;place-items:center;font:700 10px/1 Inter,sans-serif;color:#fff}
+    .notif-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    .notif-name{min-width:0;flex:1;font:600 12px/1.2 Inter,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .notif-stars{flex:none;color:var(--accent);font-size:9.5px;letter-spacing:.5px}
+    .notif-text{margin:5px 0 0;font:400 11.5px/1.38 Inter,sans-serif;color:rgba(251,248,238,.88);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    /* Telas largas: canto direito, fora da coluna central do título/botão */
+    @media (min-width:960px){
+      .notif-layer{top:84px;left:auto;right:max(14px,calc((100vw - 1080px) / 2 + 24px));margin-inline:0;width:236px}
+    }
+    /* ===== Filtro por categoria ===== */
+    .chips{display:flex;gap:8px;margin-top:12px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+    .chips::-webkit-scrollbar{display:none}
+    .chip{flex:none;display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);font:600 13px/1 Inter,sans-serif;cursor:pointer}
+    .chip:hover{color:var(--text);background:rgba(255,255,255,.05)}
+    .chip[aria-pressed="true"]{color:var(--text);background:rgba(252,95,2,.2);border-color:rgba(252,95,2,.65)}
+    .chip b{font:600 11px "JetBrains Mono",monospace;color:var(--accent)}
     @media (max-width:640px){
       .catalog-policy{display:none}
-      .review-toast{width:min(245px,72vw);right:-2%}.review-feed{inset:-20% -9%}
-      .scan-media-wall{inset:-30px}
-      .scan-media-tile{width:64px;height:92px}
-
       .top{top:6px}.hero{padding-top:30px}
+      .notif-layer{top:calc(env(safe-area-inset-top,0px) + 72px)}
       .glass{box-shadow:0 8px 22px rgba(0,0,0,.25)}
       .thumb{flex-basis:72px;width:72px;height:72px}.card-top{gap:12px}
       .price-row{align-items:stretch}.price{min-width:0}.cta{width:100%}
@@ -193,14 +221,15 @@
       .nav-links a{padding:7px 8px}
     }
     @media (prefers-reduced-motion:reduce){
-      html{scroll-behavior:auto}.scanning .ring{animation:none}.card{transition:none}.scan-btn:hover,.scan-btn:active{transform:none}.review-toast{animation:none;opacity:1;transform:none}
-      .scan-media-wall{opacity:.12!important}.scan-product-preview{opacity:.12!important;transform:none!important}.scan-btn{backdrop-filter:none;-webkit-backdrop-filter:none}
+      html{scroll-behavior:auto}.scanning .ring{animation:none}.card{transition:none}.scan-btn:hover,.scan-btn:active{transform:none}
+      .notif{animation:none;transition:opacity .3s ease}
+      .notif.is-new,.notif.is-leaving{transform:translate3d(0,var(--y),0) scale(var(--s))}
     }
     @media (pointer:coarse){
-      .nav-links a,.cta,.again,.scan-btn{min-height:44px}.nav-links a{display:grid;place-items:center}
+      .nav-links a,.cta,.again,.scan-btn,.chip{min-height:44px}.nav-links a{display:grid;place-items:center}
     }
     @media print{
-      .top,.scanner,.again,.cta{display:none!important} body{background:#fff;color:#000}.glass{background:#fff;box-shadow:none;border:1px solid #ccc}.muted,.sub,.desc{color:#333}
+      .top,.scanner,.again,.cta,.notif-layer,.chips{display:none!important} body{background:#fff;color:#000}.glass{background:#fff;box-shadow:none;border:1px solid #ccc}.muted,.sub,.desc{color:#333}
     }
   </style>
 </head>
@@ -209,7 +238,7 @@
   <header class="top">
     <nav class="nav-pill glass" aria-label="Navegação principal">
       <a class="logo" href="#scan" aria-label="Achados Shopee — início">
-        <img class="logo-mark" src="logo.png" width="90" height="46" alt="achadosshopeebsf" onerror="this.hidden=true">
+        <img class="logo-mark" src="logo-sm.png" width="90" height="46" alt="achadosshopeebsf" onerror="this.hidden=true">
       </a>
       <div class="nav-links">
         <a href="#scan">Escanear</a>
@@ -218,28 +247,25 @@
     </nav>
   </header>
 
+  <!-- Avaliações reais do produto escaneado, em banners flutuantes translúcidos (decorativo) -->
+  <div class="notif-layer" id="notifLayer" aria-hidden="true"></div>
+
   <main id="conteudo">
     <section class="hero wrap" id="scan" aria-labelledby="hero-title">
       <div class="eyebrow glass"><span class="live" aria-hidden="true"></span> radar de achados · shopee</div>
       <h1 id="hero-title">Encontre seu próximo<br><span class="grad">achado</span> em segundos.</h1>
       <p class="sub">Produtos selecionados automaticamente da Shopee com foto, preço e link de afiliado atualizado.</p>
 
-      <div class="scanner" id="scanner" aria-hidden="true">
-        <div class="scan-ambient" aria-hidden="true"></div>
-        <div class="scan-media-wall" id="scanMediaWall" aria-hidden="true"></div>
-        <div class="scan-product-preview" id="scanProductPreview" aria-hidden="true">
-          <img id="scanProductPreviewImg" alt="" decoding="async">
-          <div class="scan-product-glow"></div>
+      <div class="scanner" id="scanner">
+        <!-- Vídeo do produto atual: SEM SOM, decorativo, fica atrás do botão -->
+        <div class="scan-media" id="scanMedia" aria-hidden="true">
+          <video id="scanVideo" muted playsinline loop preload="none" tabindex="-1" aria-hidden="true" disablepictureinpicture disableremoteplayback></video>
         </div>
-        <div class="ring"></div>
+        <div class="ring" aria-hidden="true"></div>
         <button class="scan-btn" id="scanBtn" type="button" aria-label="Escanear e revelar um achado" aria-controls="productCard">
-          <span class="scan-btn-orb" aria-hidden="true"></span>
-          <span class="scan-btn-content">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>
-            <strong>Escanear</strong><small>toque para buscar</small>
-          </span>
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>
+          <span>Escanear</span><small>toque para buscar</small>
         </button>
-        <div class="review-feed" id="reviewFeed" aria-live="polite" aria-atomic="false"></div>
       </div>
       <p class="status" id="status" role="status" aria-live="polite">Carregando achados…</p>
       <div class="next-update glass" id="nextUpdate" role="status" aria-live="polite" aria-label="Contagem para a próxima atualização">
@@ -290,7 +316,8 @@
           <span class="catalog-policy" aria-hidden="true">R$ 10+ · 4,5★+</span>
           <button id="clearSearch" type="button" aria-label="Limpar busca" hidden>Limpar</button>
         </div>
-        <div class="search-hint">Pesquise no catálogo e, com uma consulta válida, o site também procura <strong>novos produtos diretamente na Shopee</strong>.</div>
+        <div class="search-hint">Pesquise por produto, categoria ou loja dentro dos achados disponíveis.</div>
+        <div class="chips" id="chips" role="group" aria-label="Filtrar por categoria" hidden></div>
       </div>
       <div class="grid" id="grid" aria-live="polite"></div>
     </section>
@@ -308,7 +335,7 @@
     (() => {
       'use strict';
 
-      const state = { products: [], viewProducts: [], liveResults: [], searchQuery: '', lastIndex: -1, busy: false, refreshTimer: null, countdownTimer: null, nextUpdateAt: null, lastSyncAt: null, visibleCount: 0, nextProduct: null, scanReviewTimer: null, mediaNodes: [], mediaStopTimer: null, searchTimer: null, liveSearchSeq: 0, liveSearchEnabled: true, liveSearchError: '' };
+      const state = { products: [], viewProducts: [], media: {}, mediaKey: null, tagFilter: '', chipsSig: '', searchQuery: '', lastId: null, busy: false, refreshTimer: null, countdownTimer: null, nextUpdateAt: null, lastSyncAt: null, visibleCount: 0 };
       // Sem teto artificial: mostramos o catálogo inteiro que o bot publicar.
       // Renderizamos em lotes (scroll incremental) só para não travar o
       // celular jogando centenas de cards no DOM de uma vez só.
@@ -319,7 +346,7 @@
         scanner: $('scanner'), scanBtn: $('scanBtn'), card: $('productCard'), again: $('againBtn'),
         grid: $('grid'), status: $('status'), count: $('count'), catalogSearch: $('catalogSearch'), clearSearch: $('clearSearch'),
         nextUpdate: $('nextUpdate'), countdown: $('countdown'), updatedAtLabel: $('updatedAtLabel'),
-        reviewFeed: $('reviewFeed'), scanMediaWall: $('scanMediaWall'), scanProductPreview: $('scanProductPreview'), scanProductPreviewImg: $('scanProductPreviewImg'),
+        notifLayer: $('notifLayer'), scanMedia: $('scanMedia'), scanVideo: $('scanVideo'), chips: $('chips'),
         thumb: $('cThumb'), thumbImg: $('cThumbImg'), thumbEmoji: $('cThumbEmoji'),
         tag: $('cTag'), name: $('cName'), stars: $('cStars'), desc: $('cDesc'),
         old: $('cOld'), now: $('cNow'), off: $('cOff'), cta: $('cCta')
@@ -344,130 +371,65 @@
         ].filter(Boolean).join(' '));
       }
 
-      function localSearchProducts(query) {
-        if (!query) return state.products.slice();
-        const terms = query.split(' ').filter(Boolean);
-        return state.products
-          .map((p) => {
-            const title = normalizeSearchText(p?.title);
-            const haystack = searchableText(p);
-            let score = 0;
-            if (title === query) score += 1000;
-            if (title.startsWith(query)) score += 600;
-            if (title.includes(query)) score += 300;
-            if (haystack.includes(query)) score += 150;
-            for (const term of terms) {
-              if (!haystack.includes(term)) return null;
-              score += 45;
-            }
-            if (p?.tag && query.includes(normalizeSearchText(p.tag))) score += 20;
-            score += Math.min(12, Number(p?.rating || 0) * 2);
-            return { p, score };
-          })
-          .filter(Boolean)
-          .sort((a, b) => b.score - a.score)
-          .map((x) => x.p);
-      }
-
-      function validCatalogProduct(p) {
-        if (!p || !(p.title || p.productName) || !(p.affLink || p.productLink)) return false;
-        const raw = String(p.now || '').replace(/[^0-9,.]/g, '');
-        const price = raw.includes(',') ? Number(raw.replace(/\./g, '').replace(',', '.')) : Number(raw);
-        const rating = Number(p.rating || 0);
-        const link = String(p.productLink || p.affLink || '');
-        return Number.isFinite(price) && price >= 10 && rating >= 4.5 && /shopee\.com\.br\//i.test(link);
-      }
-
-      function mergeSearchResults(local, live) {
-        const map = new Map();
-        const bySignature = new Map();
-        const add = (p, liveFlag = false) => {
-          if (!validCatalogProduct(p)) return;
-          const id = String(p.id || p.itemId || '');
-          const titleKey = normalizeSearchText(p.title || p.productName).replace(/[^a-z0-9]+/g, ' ').trim();
-          const existing = id ? map.get(id) : null;
-          if (existing) return;
-          const signature = titleKey;
-          const prior = bySignature.get(signature);
-          if (prior) {
-            const a = Number(String(prior.now || '').replace(/[^0-9,.]/g,'' ).replace(/\./g,'').replace(',','.')) || Infinity;
-            const b = Number(String(p.now || '').replace(/[^0-9,.]/g,'' ).replace(/\./g,'').replace(',','.')) || Infinity;
-            if (b < a) {
-              map.set(String(prior.id || prior.itemId), { ...p, live: liveFlag });
-              bySignature.set(signature, p);
-            }
-            return;
-          }
-          if (id) map.set(id, { ...p, live: liveFlag });
-          else map.set(`${signature}-${map.size}`, { ...p, live: liveFlag });
-          bySignature.set(signature, p);
-        };
-        local.forEach((p) => add(p, false));
-        live.forEach((p) => add(p, true));
-        return Array.from(map.values());
-      }
-
-      function renderSearchState() {
-        const local = localSearchProducts(state.searchQuery);
-        state.viewProducts = mergeSearchResults(local, state.liveResults);
-        state.lastIndex = -1;
-        state.visibleCount = Math.min(GRID_BATCH_SIZE, state.viewProducts.length);
-        els.clearSearch.hidden = !state.searchQuery;
-        renderGrid();
-        ensureNextProductPrimed();
-        if (state.searchQuery && state.liveSearchEnabled) {
-          const suffix = state.liveResults.length ? ` · ${state.liveResults.length} resultados novos na Shopee` : '';
-          els.status.textContent = state.liveSearchError ? 'Busca local disponível; busca Shopee indisponível nesta hospedagem.' : `Pesquisando: “${state.searchQuery}”${suffix}`;
-        }
-      }
-
-      async function requestLiveSearch(query, seq) {
-        if (!state.liveSearchEnabled || query.length < 2 || seq !== state.liveSearchSeq) return;
-        try {
-          const url = `./api/search?q=${encodeURIComponent(query)}&limit=80`;
-          const res = await fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json' } });
-          if (!res.ok) throw new Error(`LIVE_SEARCH_HTTP_${res.status}`);
-          const data = await res.json();
-          if (seq !== state.liveSearchSeq) return;
-          state.liveResults = Array.isArray(data?.products) ? data.products : [];
-          state.liveSearchError = '';
-          renderSearchState();
-        } catch (error) {
-          if (seq !== state.liveSearchSeq) return;
-          state.liveResults = [];
-          state.liveSearchError = error?.message || 'erro';
-          // 404 em GitHub Pages significa apenas que não existe backend serverless
-          // nessa hospedagem; não quebra o catálogo local.
-          if (/LIVE_SEARCH_HTTP_404/.test(state.liveSearchError)) state.liveSearchEnabled = false;
-          renderSearchState();
-        }
-      }
-
       function applySearch() {
         const query = normalizeSearchText(els.catalogSearch.value || '');
         state.searchQuery = query;
-        state.liveResults = [];
-        state.liveSearchSeq++;
-        if (state.searchTimer) window.clearTimeout(state.searchTimer);
-        renderSearchState();
-        if (query.length >= 2 && state.liveSearchEnabled) {
-          const seq = state.liveSearchSeq;
-          els.status.textContent = `Pesquisando “${query}” na Shopee…`;
-          state.searchTimer = window.setTimeout(() => requestLiveSearch(query, seq), 320);
+        state.lastId = null;
+        const base = state.tagFilter ? state.products.filter((p) => p?.tag === state.tagFilter) : state.products;
+
+        if (!query) {
+          state.viewProducts = base.slice();
+        } else {
+          const terms = query.split(' ').filter(Boolean);
+          state.viewProducts = base
+            .map((p) => {
+              const title = normalizeSearchText(p?.title);
+              const haystack = searchableText(p);
+              let score = 0;
+
+              if (title === query) score += 1000;
+              if (title.startsWith(query)) score += 600;
+              if (title.includes(query)) score += 300;
+              if (haystack.includes(query)) score += 150;
+
+              let allTerms = true;
+              for (const term of terms) {
+                if (haystack.includes(term)) score += 45;
+                else allTerms = false;
+              }
+              if (!allTerms) return null;
+
+              if (p?.tag && query.includes(normalizeSearchText(p.tag))) score += 20;
+              score += Math.min(12, Number(p?.rating || 0) * 2);
+              return { p, score };
+            })
+            .filter(Boolean)
+            .sort((a, b) => b.score - a.score)
+            .map((x) => x.p);
         }
+
+        state.visibleCount = Math.min(GRID_BATCH_SIZE, state.viewProducts.length);
+        els.clearSearch.hidden = !query;
+        renderGrid();
+        ensureNextProductPrimed();
       }
 
+      const productKey = (p) => String(p?.id || p?.itemId || '');
+      const hasMedia = (p) => { const m = state.media[productKey(p)]; return !!(m && ((m.reviews && m.reviews.length) || m.video)); };
+
       function pickProduct() {
-        const reviewReady = state.viewProducts.filter((p) => Array.isArray(p?.reviews) && p.reviews.length);
-        const pool = reviewReady.length ? reviewReady : state.viewProducts;
-        const n = pool.length;
-        if (!n) return null;
-        let i = Math.floor(Math.random() * n);
-        const previousId = state.viewProducts[state.lastIndex]?.id;
-        if (n > 1 && pool[i]?.id === previousId) i = (i + 1) % n;
-        const finalPick = pool[i];
-        state.lastIndex = state.viewProducts.findIndex((p) => p?.id === finalPick?.id);
-        return finalPick;
+        const list = state.viewProducts;
+        if (!list.length) return null;
+        // Em ~80% das vezes prefere produtos que têm avaliações reais / vídeo
+        // coletados, para a experiência do Escanear ficar completa. Se nenhum
+        // tiver, ou na fatia restante, sorteia entre todos como antes.
+        let pool = list;
+        const rich = list.filter(hasMedia);
+        if (rich.length && Math.random() < 0.8) pool = rich;
+        let p = pool[Math.floor(Math.random() * pool.length)];
+        if (pool.length > 1 && productKey(p) === state.lastId) p = pool[(pool.indexOf(p) + 1) % pool.length];
+        state.lastId = productKey(p);
+        return p;
       }
 
       function setImage(img, url, alt) {
@@ -518,131 +480,22 @@
         if (!stillValid) primeNextProduct();
       }
 
-      function initials(name) {
-        const text = String(name || '').trim().replace(/^@/, '');
-        if (!text) return 'SH';
-        const parts = text.split(/[^a-zA-Z0-9À-ÿ]+/).filter(Boolean);
-        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-        return text.slice(0, 2).toUpperCase();
-      }
-
-      function clearScanExtras() {
-        window.clearInterval(state.scanReviewTimer);
-        state.scanReviewTimer = null;
-        window.clearTimeout(state.mediaStopTimer);
-        state.mediaStopTimer = null;
-        els.reviewFeed.replaceChildren();
-        els.scanMediaWall.replaceChildren();
-        els.scanner.classList.remove('has-scan-media');
-        state.mediaNodes = [];
-        els.scanProductPreviewImg.removeAttribute('src');
-        els.scanProductPreviewImg.alt = '';
-      }
-
-      function setScanPreviewImage(p) {
-        const url = String(p?.image || '').trim();
-        if (!url) { els.scanProductPreviewImg.removeAttribute('src'); return; }
-        els.scanProductPreviewImg.alt = p?.title || 'Produto escaneado';
-        els.scanProductPreviewImg.src = url;
-      }
-
-      function safeMediaUrl(url) {
-        const value = String(url || '').trim();
-        if (!/^https?:\/\//i.test(value)) return '';
-        return /^https?:\/\/(?:[^/]+\.)?(?:shopee|susercontent)\.com(?:\.[^/]+)?\//i.test(value) ? value : '';
-      }
-
-      function renderScanVideos(p) {
-        els.scanMediaWall.replaceChildren();
-        const urls = [...(Array.isArray(p?.productVideos) ? p.productVideos : []), ...(Array.isArray(p?.reviewVideos) ? p.reviewVideos : [])]
-          .map(safeMediaUrl).filter(Boolean);
-        setScanPreviewImage(p);
-        if (!urls.length) {
-          // Sem inventar vídeo: a arte do produto continua aparecendo de forma
-          // translúcida atrás do botão até que uma fonte autorizada de vídeo esteja disponível.
-          els.scanner.classList.add('has-scan-media');
-          return;
-        }
-        urls.slice(0, 4).forEach((url) => {
-          const tile = document.createElement('div'); tile.className = 'scan-media-tile';
-          const video = document.createElement('video');
-          video.src = url; video.muted = true; video.defaultMuted = true; video.volume = 0;
-          video.autoplay = true; video.loop = true; video.playsInline = true; video.preload = 'metadata';
-          video.setAttribute('muted',''); video.setAttribute('playsinline',''); video.setAttribute('aria-hidden','true');
-          tile.appendChild(video); els.scanMediaWall.appendChild(tile); state.mediaNodes.push(video);
-          video.play().catch(() => {});
-        });
-        const shade = document.createElement('div'); shade.className = 'scan-media-shade'; els.scanMediaWall.appendChild(shade);
-        els.scanner.classList.add('has-scan-media');
-      }
-
-      function renderReviewFeed(p) {
-        window.clearInterval(state.scanReviewTimer); state.scanReviewTimer = null; els.reviewFeed.replaceChildren();
-        const reviews = Array.isArray(p?.reviews) ? p.reviews.filter((r) => r && r.comment).slice(0, 5) : [];
-        if (!reviews.length) return;
-        let idx = 0;
-        const showOne = () => {
-          const review = reviews[idx % reviews.length]; idx += 1;
-          const toast = document.createElement('div'); toast.className = 'review-toast'; toast.style.top = `${2 + (idx % 5) * 19}%`;
-          const head = document.createElement('div'); head.className = 'review-toast-head';
-          const avatar = document.createElement('div'); avatar.className = 'review-avatar'; avatar.textContent = initials(review.author);
-          const meta = document.createElement('div'); meta.className = 'review-meta';
-          const brand = document.createElement('span'); brand.className = 'review-brand'; brand.textContent = 'achadosshopeebsf';
-          const user = document.createElement('span'); user.className = 'review-user'; user.textContent = review.author ? `@${String(review.author).replace(/^@/,'')}` : 'comprador anônimo';
-          meta.append(brand, user);
-          const stars = document.createElement('span'); stars.className = 'review-stars'; stars.textContent = '★'.repeat(Math.max(1, Math.min(5, Number(review.rating || 5))));
-          head.append(avatar, meta, stars);
-          const comment = document.createElement('p'); comment.className = 'review-comment'; comment.textContent = review.comment;
-          const source = document.createElement('div'); source.className = 'review-source'; source.textContent = 'avaliação real · Shopee';
-          toast.append(head, comment, source); els.reviewFeed.appendChild(toast);
-          window.setTimeout(() => toast.remove(), 5200);
-        };
-        showOne();
-        if (reviews.length > 1) {
-          state.scanReviewTimer = window.setInterval(() => {
-            if (idx >= reviews.length) { window.clearInterval(state.scanReviewTimer); state.scanReviewTimer = null; return; }
-            showOne();
-          }, 1600);
-        }
-      }
-
-      async function hydrateScanDetails(p) {
-        if (!p?.shopId || !p?.itemId) return;
-        try {
-          const url = `./api/reviews?shopId=${encodeURIComponent(p.shopId)}&itemId=${encodeURIComponent(p.itemId)}`;
-          const res = await fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json' } });
-          if (!res.ok) return;
-          const data = await res.json();
-          if (!data || (Array.isArray(data.reviews) && !data.reviews.length && !data.reviewVideos?.length && !data.productVideos?.length)) return;
-          const enriched = { ...p, reviews: Array.isArray(data.reviews) ? data.reviews : (p.reviews || []), reviewVideos: Array.isArray(data.reviewVideos) ? data.reviewVideos : (p.reviewVideos || []), productVideos: Array.isArray(data.productVideos) ? data.productVideos : (p.productVideos || []), reviewCount: Number(data.totalCount || p.reviewCount || 0) };
-          const idx = state.products.findIndex((x) => String(x.id) === String(p.id));
-          if (idx >= 0) state.products[idx] = enriched;
-          renderScanVideos(enriched);
-          renderReviewFeed(enriched);
-          const current = String(els.name.textContent || '') === String(p.title || '');
-          if (current && enriched.reviews.length) els.status.textContent = 'Achado encontrado · avaliações reais carregadas.';
-        } catch (_) { /* busca de detalhes é complementar ao scanner */ }
-      }
-
       function reveal() {
         if (state.busy) return;
         if (!state.products.length) { els.status.textContent = 'Nenhum produto disponível no momento.'; return; }
         state.busy = true; els.scanBtn.disabled = true; els.status.textContent = 'Buscando um achado…';
         const stillValid = state.nextProduct && state.viewProducts.some((p) => p.id === state.nextProduct.id);
         const p = stillValid ? state.nextProduct : pickProduct();
-        clearScanExtras(); fillCard(p); renderScanVideos(p); renderReviewFeed(p);
-        hydrateScanDetails(p);
-        els.scanner.classList.add('scanning'); primeNextProduct();
+        fillCard(p); els.scanner.classList.add('scanning');
+        playMediaFor(p);
+        primeNextProduct(); // já deixa o próximo pronto (foto em cache) para o clique seguinte
         window.setTimeout(() => {
-          els.scanner.classList.remove('scanning'); els.card.classList.add('show'); els.card.setAttribute('aria-hidden','false'); els.again.style.display = 'block';
-          els.status.textContent = (Array.isArray(p?.reviews) && p.reviews.length) ? 'Achado encontrado · avaliações reais carregadas.' : 'Achado encontrado.';
+          els.scanner.classList.remove('scanning');
+          els.card.classList.add('show');
+          els.card.setAttribute('aria-hidden', 'false');
+          els.again.style.display = 'block';
+          els.status.textContent = 'Achado encontrado.';
           state.busy = false; els.scanBtn.disabled = false;
-          state.mediaStopTimer = window.setTimeout(() => {
-            if (!state.busy) {
-              // Mantém o preview do produto, mas pausa vídeos para economizar bateria.
-              state.mediaNodes.forEach((video) => { try { video.pause(); } catch {} });
-            }
-          }, 14000);
         }, 420);
       }
 
@@ -658,7 +511,7 @@
             ? `Nenhum achado encontrado para "${state.searchQuery}".`
             : 'Nenhum produto disponível no momento.';
           els.grid.replaceChildren(empty);
-          els.count.textContent = state.searchQuery ? '0 encontrados' : '0 achados disponíveis';
+          els.count.textContent = (state.searchQuery || state.tagFilter) ? '0 encontrados' : '0 achados disponíveis';
           renderLoadMore(0);
           return;
         }
@@ -694,7 +547,7 @@
           bottom.append(priceBlock,link); content.append(tag,title,desc,bottom); card.append(media,content); frag.append(card);
         });
         els.grid.replaceChildren(frag);
-        els.count.textContent = state.searchQuery ? `${total} encontrados` : `${total} achados disponíveis`;
+        els.count.textContent = (state.searchQuery || state.tagFilter) ? `${total} encontrados` : `${total} achados disponíveis`;
         renderLoadMore(total);
       }
 
@@ -728,6 +581,224 @@
           loadMoreObserver.observe(sentinel);
         }
       }
+
+
+      // ===== Vídeo do produto atrás do botão "Escanear" (SEM SOM) =====
+      // Decorativo e translúcido. Só toca o vídeo do produto que está sendo
+      // escaneado agora; se o produto não tem vídeo, o anterior é removido
+      // (nunca fica um vídeo de outro produto na tela).
+      const reduceMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+      const canPlayVideo = () => !reduceMotion.matches && !(navigator.connection && navigator.connection.saveData);
+      const video = els.scanVideo;
+
+      function forceMuted() { video.muted = true; video.defaultMuted = true; video.volume = 0; }
+      forceMuted();
+      video.addEventListener('volumechange', () => { if (!video.muted || video.volume > 0) forceMuted(); });
+      video.addEventListener('playing', () => { els.scanMedia.classList.add('on'); els.scanner.classList.add('has-video'); });
+      video.addEventListener('error', () => { els.scanMedia.classList.remove('on'); els.scanner.classList.remove('has-video'); });
+
+      function setScanVideo(url) {
+        els.scanMedia.classList.remove('on');
+        els.scanner.classList.remove('has-video');
+        if (!url || !canPlayVideo()) {
+          if (video.dataset.src) { video.pause(); video.removeAttribute('src'); video.load(); delete video.dataset.src; }
+          return;
+        }
+        if (video.dataset.src === url) { video.play().catch(() => {}); return; }
+        forceMuted();
+        video.dataset.src = url;
+        video.preload = 'auto';
+        video.src = url;
+        video.play().catch(() => {});
+      }
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) video.pause();
+        else if (video.dataset.src) video.play().catch(() => {});
+      });
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(([entry]) => {
+          if (!video.dataset.src) return;
+          if (entry.isIntersecting) video.play().catch(() => {}); else video.pause();
+        }).observe(els.scanner);
+      }
+
+      // ===== Notificações flutuantes com avaliações REAIS =====
+      // Só aparecem avaliações que a Shopee devolveu para ESTE produto (ver
+      // scraper/fetch-media.js). Nada é gerado/inventado aqui. O horário mostrado
+      // é o da avaliação original ("há 3 meses"), não "agora", para não sugerir
+      // uma compra ao vivo.
+      const NOTIF_APP_NAME = 'achadosshopeebsff';
+      const NOTIF = { firstDelay: 900, gapPx: 8 };
+      // Telas pequenas: 1 banner por vez (nunca empilha sobre o título).
+      // Telas maiores: até 2 empilhados no canto direito.
+      const notifTiming = () => (window.innerWidth < 640
+        ? { gap: 4600, life: 4400, maxVisible: 1, max: 4 }
+        : { gap: 3200, life: 6400, maxVisible: 2, max: 5 });
+      const notif = { timers: [], active: [] };
+      const AVATAR_COLORS = ['#c2410c', '#b45309', '#a21caf', '#0f766e', '#1d4ed8', '#be123c', '#4d7c0f'];
+
+      function relTime(sec) {
+        if (!sec) return '';
+        const days = Math.floor(Math.max(0, Date.now() / 1000 - sec) / 86400);
+        if (days < 1) return 'hoje';
+        if (days < 7) return `há ${days} ${days === 1 ? 'dia' : 'dias'}`;
+        if (days < 30) { const w = Math.floor(days / 7); return `há ${w} ${w === 1 ? 'semana' : 'semanas'}`; }
+        if (days < 365) { const m = Math.max(1, Math.floor(days / 30)); return `há ${m} ${m === 1 ? 'mês' : 'meses'}`; }
+        const y = Math.floor(days / 365); return `há ${y} ${y === 1 ? 'ano' : 'anos'}`;
+      }
+
+      function mk(tag, cls, text) {
+        const el = document.createElement(tag);
+        if (cls) el.className = cls;
+        if (text != null) el.textContent = text;
+        return el;
+      }
+
+      function buildNotif(r) {
+        const el = mk('div', 'notif is-new');
+        const head = mk('div', 'notif-head');
+        const icon = mk('img', 'notif-app'); icon.src = 'notif-icon.png'; icon.alt = ''; icon.width = 14; icon.height = 14;
+        head.append(icon, mk('span', 'notif-appname', NOTIF_APP_NAME), mk('span', 'notif-time', relTime(r.at)));
+
+        const who = mk('div', 'notif-who');
+        const avatar = mk('span', 'notif-avatar', (String(r.user).match(/[A-Za-zÀ-ú0-9]/) || ['C'])[0].toUpperCase());
+        let hash = 0; for (const ch of String(r.user)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+        avatar.style.background = AVATAR_COLORS[hash % AVATAR_COLORS.length];
+        if (r.avatar) {
+          const img = document.createElement('img');
+          img.alt = ''; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+          img.addEventListener('error', () => img.remove());
+          img.src = r.avatar;
+          avatar.appendChild(img);
+        }
+        who.append(avatar, mk('span', 'notif-name', r.user));
+        if (r.stars > 0) who.append(mk('span', 'notif-stars', '★'.repeat(r.stars)));
+
+        el.append(head, who, mk('p', 'notif-text', r.text));
+        el.style.animationDelay = `${(-Math.random() * 4).toFixed(2)}s`;
+        return el;
+      }
+
+      function layoutNotifs() {
+        let y = 0;
+        notif.active.forEach((n, i) => {
+          n.el.dataset.d = String(Math.min(i, 2));
+          n.el.style.setProperty('--y', `${y}px`);
+          n.el.style.setProperty('--s', String(1 - Math.min(i, 2) * 0.03));
+          y += n.el.offsetHeight + NOTIF.gapPx;
+        });
+      }
+
+      function dismissNotif(n) {
+        const idx = notif.active.indexOf(n);
+        if (idx === -1) return;
+        notif.active.splice(idx, 1);
+        window.clearTimeout(n.timer);
+        n.el.classList.add('is-leaving');
+        layoutNotifs();
+        window.setTimeout(() => n.el.remove(), 800);
+      }
+
+      function showNotif(r) {
+        const t = notifTiming();
+        const el = buildNotif(r);
+        els.notifLayer.appendChild(el);
+        const n = { el, timer: 0 };
+        notif.active.unshift(n);           // mais nova no topo, as anteriores descem e esmaecem
+        while (notif.active.length > t.maxVisible) dismissNotif(notif.active[notif.active.length - 1]);
+        layoutNotifs();
+        void el.offsetWidth;               // garante o estado inicial antes de animar a entrada
+        requestAnimationFrame(() => el.classList.remove('is-new'));
+        n.timer = window.setTimeout(() => dismissNotif(n), t.life);
+      }
+
+      function stopReviews() {
+        notif.timers.forEach((t) => window.clearTimeout(t));
+        notif.timers = [];
+        [...notif.active].forEach(dismissNotif);
+      }
+
+      function startReviews(reviews) {
+        stopReviews();
+        const t = notifTiming();
+        (reviews || []).slice(0, t.max).forEach((r, i) => {
+          notif.timers.push(window.setTimeout(() => showNotif(r), NOTIF.firstDelay + i * t.gap));
+        });
+      }
+
+      function playMediaFor(p) {
+        const m = state.media[productKey(p)] || null;
+        setScanVideo(m && m.video ? m.video.url : '');
+        startReviews(m ? m.reviews : []);
+      }
+
+      // ===== Avaliações/vídeo publicados pelo bot (product-media.json) =====
+      function sanitizeMedia(raw, validIds) {
+        const out = {};
+        for (const [id, m] of Object.entries(raw || {})) {
+          if (!validIds.has(id) || !m) continue;
+          const reviews = (Array.isArray(m.reviews) ? m.reviews : [])
+            .filter((r) => r && typeof r.text === 'string' && r.text.trim().length >= 10)
+            .slice(0, 8)
+            .map((r) => ({
+              user: String(r.user || 'Cliente Shopee').slice(0, 24),
+              avatar: /^https:\/\//i.test(String(r.avatar || '')) ? String(r.avatar) : '',
+              stars: Math.max(0, Math.min(5, Math.round(Number(r.stars) || 0))),
+              text: r.text.trim().slice(0, 260),
+              at: Number(r.at) || 0
+            }));
+          const url = m.video && typeof m.video.url === 'string' && /^https:\/\//i.test(m.video.url) ? m.video.url : '';
+          if (reviews.length || url) out[id] = { reviews, video: url ? { url } : null };
+        }
+        return out;
+      }
+
+      async function fetchMediaRaw() {
+        try {
+          const res = await fetch(`./product-media.json?ts=${Date.now()}`, { cache: 'no-store', headers: { 'Accept': 'application/json' }});
+          if (!res.ok) return null;
+          const data = await res.json();
+          return data && typeof data.items === 'object' ? data.items : null;
+        } catch { return null; }
+      }
+
+      // ===== Filtro por categoria =====
+      const TAG_LABELS = { 'Cabelo Liso': 'Cabelo liso' };
+      const PINNED_TAG = 'Cabelo Liso';
+
+      function renderChips() {
+        const counts = new Map();
+        state.products.forEach((p) => { if (p?.tag) counts.set(p.tag, (counts.get(p.tag) || 0) + 1); });
+        if (state.tagFilter && !counts.has(state.tagFilter)) { state.tagFilter = ''; applySearch(); }
+        const tags = [...counts.entries()]
+          .sort((a, b) => (a[0] === PINNED_TAG ? -1 : b[0] === PINNED_TAG ? 1 : b[1] - a[1]))
+          .slice(0, 8);
+        const sig = `${state.tagFilter}|${tags.map(([t, c]) => `${t}:${c}`).join(',')}`;
+        if (sig === state.chipsSig) return;
+        state.chipsSig = sig;
+        if (tags.length < 2) { els.chips.hidden = true; els.chips.replaceChildren(); return; }
+        const make = (value, label, count) => {
+          const b = mk('button', 'chip', label);
+          b.type = 'button'; b.dataset.tag = value;
+          b.setAttribute('aria-pressed', String(state.tagFilter === value));
+          b.append(mk('b', '', String(count)));
+          return b;
+        };
+        els.chips.replaceChildren(
+          make('', 'Todos', state.products.length),
+          ...tags.map(([t, c]) => make(t, TAG_LABELS[t] || t, c))
+        );
+        els.chips.hidden = false;
+      }
+
+      els.chips.addEventListener('click', (e) => {
+        const btn = e.target.closest('.chip');
+        if (!btn) return;
+        state.tagFilter = btn.dataset.tag || '';
+        state.chipsSig = '';
+        applySearch();
+        renderChips();
+      });
 
       function formatRemaining(ms) {
         const total = Math.max(0, Math.ceil(ms / 1000));
@@ -770,19 +841,32 @@
 
       async function loadProducts(isRefresh = false) {
         try {
-          const [res] = await Promise.all([
+          const firstMedia = state.mediaKey === null;
+          const [res, , firstRaw] = await Promise.all([
             fetch(`./products.json?ts=${Date.now()}`, { cache: 'no-store', headers: { 'Accept': 'application/json' }}),
-            loadMeta().catch((error) => { console.warn('Falha no relógio de sincronização:', error); return null; })
+            loadMeta().catch((error) => { console.warn('Falha no relógio de sincronização:', error); return null; }),
+            firstMedia ? fetchMediaRaw() : Promise.resolve(undefined)
           ]);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
-          state.products = Array.isArray(data) ? data.filter(validCatalogProduct) : [];
+          state.products = Array.isArray(data) ? data.filter(p => {
+            if (!p || !(p.title || p.productName) || !(p.affLink || p.productLink)) return false;
+            const raw = String(p.now || '').replace(/[^0-9,.]/g, '');
+            const price = raw.includes(',') ? Number(raw.replace(/\./g, '').replace(',', '.')) : Number(raw);
+            const rating = Number(p.rating || 0);
+            return Number.isFinite(price) && price >= 10 && rating >= 4.5;
+          }) : [];
+          const ids = new Set(state.products.map(productKey));
+          const syncKey = state.lastSyncAt || 'init';
+          if (firstMedia) { state.mediaKey = syncKey; state.media = sanitizeMedia(firstRaw, ids); }
+          else if (state.mediaKey !== syncKey) { state.mediaKey = syncKey; state.media = sanitizeMedia(await fetchMediaRaw(), ids); }
           applySearch();
+          renderChips();
           // O relógio inicia (ou reinicia) sempre que temos um nextUpdateAt válido,
           // mesmo que o fetch do sync-meta.json de uma rodada específica tenha falhado
           // (nesse caso mantemos contando a partir do último valor conhecido).
           if (state.nextUpdateAt) startCountdown();
-          els.status.textContent = state.products.length ? `${state.products.length} achados disponíveis · busca ampliada pronta.` : 'Catálogo inicial carregado. Sincronização automática em andamento…';
+          els.status.textContent = state.products.length ? `${state.products.length} achados disponíveis · links de afiliado ativos.` : 'Catálogo inicial carregado. Sincronização automática em andamento…';
         } catch (error) {
           console.error('Falha ao carregar produtos:', error);
           els.status.textContent = state.products.length ? 'Mantendo os achados já carregados enquanto a API sincroniza.' : 'Catálogo inicial em carregamento…';
@@ -800,7 +884,6 @@
       }
 
       els.catalogSearch.addEventListener('input', applySearch);
-      els.catalogSearch.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); applySearch(); } });
       els.clearSearch.addEventListener('click', () => {
         els.catalogSearch.value = '';
         applySearch();
@@ -808,9 +891,9 @@
       });
       els.scanBtn.addEventListener('click', reveal, { passive: true });
       els.again.addEventListener('click', () => {
+        stopReviews();
         els.card.classList.remove('show');
         els.card.setAttribute('aria-hidden','true');
-        clearScanExtras();
         window.setTimeout(reveal, 160);
       });
 
