@@ -27,7 +27,6 @@ const META_FILE = path.join(ROOT, 'sync-meta.json');
 // de verdade, em vez de só comparar com o ciclo imediatamente anterior.
 const HISTORY_FILE = path.join(ROOT, 'product-history.json');
 const ENDPOINT = 'https://open-api.affiliate.shopee.com.br/graphql';
-const REVIEW_CACHE_FILE = path.join(ROOT, 'review-cache.json');
 
 const APP_ID = process.env.SHOPEE_APP_ID;
 const APP_SECRET = process.env.SHOPEE_APP_SECRET;
@@ -354,6 +353,16 @@ function inferTag(name) {
   // por isso exige contexto (ração de/para cão, gato, cachorro, pet).
   if (/areia (sanit[aá]ria|para gato)|comedouro|fonte de [aá]gua.*pet|antipulga|coleira pet|petisco|\bpet\b|para c[aã]es|para gato|ra[cç][aã]o (de |para )?(c[aã]o|gato|cachorro|pet)/i.test(n)) return 'Pets';
 
+  // Cabelo Liso (categoria OBRIGATÓRIA — ver mandatoryQuotas em bot-config.json).
+  // Checada logo no começo, antes de Beleza/Eletrônicos, porque nomes como
+  // "Escova Alisadora Smart" ou "Chapinha Bivolt" caem em regex mais amplas
+  // (smart/bivolt/elétrico) se ficarem para depois. Cada termo é específico de
+  // propósito para não capturar coisas como "lente progressiva", "prancha de
+  // surf" ou "alisador de massa".
+  if (
+    /chapinha|prancha\s+(alisadora|de\s+cabelo|para\s+cabelo|profissional|cer[aâ]mica|titanium|bivolt|450|modeladora)|alisador(?!\s+(de\s+)?(massa|cimento|piso|concreto|parede|reboco))|alisante|alisamento|escova\s+(alisadora|secadora|modeladora|rotativa\s+secadora|el[eé]trica\s+alisadora)|pente\s+(alisador|el[eé]trico\s+alisador)|(kit|escova|creme|cabelo)\s+progressiva|progressiva\s+(sem|capilar|org[aâ]nica|para|de|kit)|selagem\s+(capilar|t[eé]rmica|de\s+cabelo)|kit\s+selagem|botox\s+capilar|cauteriza[cç][aã]o|cabelos?\s+lisos?|efeito\s+liso|liso\s+(espelhado|definitivo|perfeito)|ativador\s+de\s+liso|secador\s+(i[oô]nico|profissional)|protetor\s+t[eé]rmico/i.test(n)
+  ) return 'Cabelo Liso';
+
   // Smartphones — checado ANTES de Auto & Moto de propósito: "Motorola Moto
   // G84" tem "moto" no nome e seria capturado por engano como item de moto se
   // essa checagem viesse depois. IMPORTANTE: a palavra "celular"/"iphone"/
@@ -382,9 +391,6 @@ function inferTag(name) {
 
   // Cozinha
   if (/air ?fryer|panela|liquidificador|processador de alimentos|fatiador|descascador|forma de silicone|torneira|espremedor|utens[ií]lio.*cozinha|balan[cç]a.*cozinha/i.test(n)) return 'Cozinha';
-
-  // Liso & Alisamento — categoria obrigatória para manter uma vitrine permanente de produtos para deixar o cabelo liso.
-  if (/escova alisadora|escova de alisamento|pente alisador|prancha alisadora|chapinha|alisador de cabelo|escova secadora|modelador sem calor|escova rotativa alisadora|prancha de cabelo/i.test(n)) return 'Liso & Alisamento';
 
   // Beleza
   if (/lip ?tint|batom|base l[ií]quida|blush|pincel|maquiagem|secadora|chapinha|s[eé]rum|skincare|corretivo|barbeador|beleza|cabelo|massageador facial|pistola de massagem/i.test(n)) return 'Beleza';
@@ -494,137 +500,6 @@ function scoreProduct(p, config) {
     perfectFindBonus + viralBonus + categoryBoost;
 }
 
-function safeShopeeMediaUrl(value) {
-  try {
-    const url = new URL(String(value || ''));
-    const host = url.hostname.toLowerCase();
-    if (!/^https?:$/.test(url.protocol)) return '';
-    if (host === 'shopee.com.br' || host.endsWith('.shopee.com') || host.endsWith('.susercontent.com')) return url.toString();
-    return '';
-  } catch { return ''; }
-}
-
-function cleanReviewText(value, maxLen = 220) {
-  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, maxLen);
-}
-
-function normalizeReview(raw) {
-  if (!raw || raw.is_hidden === true) return null;
-  if (raw.status !== undefined && Number(raw.status) !== 2) return null;
-  const rating = Number(raw.rating_star || 0);
-  const comment = cleanReviewText(raw.comment);
-  if (!(rating >= 4) || !comment) return null;
-  return { author: raw.anonymous ? '' : cleanReviewText(raw.author_username, 80), rating, comment, ctime: Number(raw.ctime || 0), source: 'Shopee' };
-}
-
-function collectReviewVideos(rawRatings) {
-  const urls = [];
-  for (const raw of rawRatings || []) {
-    for (const value of Array.isArray(raw?.rating_videos) ? raw.rating_videos : []) {
-      const safe = safeShopeeMediaUrl(value);
-      if (safe && !urls.includes(safe)) urls.push(safe);
-      if (urls.length >= 4) return urls;
-    }
-  }
-  return urls;
-}
-
-function safeShopeeMediaUrl(value) {
-  const url = String(value || '').trim();
-  if (!/^https?:\/\//i.test(url)) return '';
-  try {
-    const host = new URL(url).hostname.toLowerCase();
-    if (!/(^|\.)shopee\.com(?:\.br)?$|(^|\.)susercontent\.com$/i.test(host)) return '';
-    return url;
-  } catch { return ''; }
-}
-
-function reviewCacheIsFresh(entry, config) {
-  const hours = Math.max(1, Number(config.reviewRefreshHours || 12));
-  return entry && Number(entry.fetchedAtMs) > Date.now() - hours * 3600000;
-}
-
-async function fetchReviewsFromConfiguredProvider(product, config = {}) {
-  const baseUrl = String(process.env.SHOPEE_REVIEW_PROVIDER_URL || '').trim();
-  if (!baseUrl) return null;
-  const url = new URL(baseUrl);
-  url.searchParams.set('shopId', String(product.shopId));
-  url.searchParams.set('itemId', String(product.itemId));
-  const headers = { 'Accept': 'application/json' };
-  if (process.env.SHOPEE_REVIEW_PROVIDER_TOKEN) headers.Authorization = `Bearer ${process.env.SHOPEE_REVIEW_PROVIDER_TOKEN}`;
-  const response = await fetch(url, { headers, signal: AbortSignal.timeout(Number(config.reviewTimeoutMs || 12000)) });
-  const raw = await response.text();
-  if (!response.ok) throw new Error(`Review provider HTTP ${response.status}: ${raw.slice(0, 180)}`);
-  let data; try { data = JSON.parse(raw); } catch { throw new Error('Review provider retornou JSON inválido.'); }
-  return {
-    reviews: Array.isArray(data?.reviews) ? data.reviews : [],
-    reviewVideos: Array.isArray(data?.reviewVideos) ? data.reviewVideos.filter(safeShopeeMediaUrl) : [],
-    productVideos: Array.isArray(data?.productVideos) ? data.productVideos.filter(safeShopeeMediaUrl) : [],
-    totalCount: Number(data?.totalCount || 0)
-  };
-}
-
-// A Affiliate Open API oficial fornece dados de produto/comissão, mas não a lista
-// individual de comentários. Os endpoints internos de ratings da página Shopee
-// são protegidos pelo anti-bot (90309999). Portanto o bot NÃO os chama mais.
-// Ele usa apenas reviews previamente armazenadas por uma fonte autorizada,
-// ou um provider externo explicitamente configurado por Secrets.
-async function enrichOutputWithRealReviews(output, config, runCount, diagnostics) {
-  const cache = readJson(REVIEW_CACHE_FILE, {});
-  const providerConfigured = Boolean(String(process.env.SHOPEE_REVIEW_PROVIDER_URL || '').trim());
-  diagnostics.reviewProviderConfigured = providerConfigured;
-  diagnostics.reviewCandidates = 0;
-  diagnostics.reviewFetched = 0;
-  diagnostics.reviewErrors = 0;
-
-  for (let i = 0; i < output.length; i++) {
-    const p = output[i];
-    if (!p?.itemId) continue;
-    const cached = cache[String(p.itemId)];
-    if (cached && Array.isArray(cached.reviews)) {
-      output[i] = { ...p,
-        reviews: cached.reviews || [],
-        reviewVideos: (cached.reviewVideos || []).filter(safeShopeeMediaUrl),
-        productVideos: (cached.productVideos || []).filter(safeShopeeMediaUrl),
-        reviewSource: 'Shopee-authorized', reviewFetchedAt: cached.fetchedAt || '', reviewCount: cached.totalCount || 0
-      };
-    }
-  }
-
-  if (providerConfigured && output.length) {
-    const perRun = Math.max(0, Math.min(Number(config.reviewEnrichmentPerRun || 12), output.length));
-    const candidates = [];
-    for (let i = 0; i < output.length && candidates.length < perRun; i++) {
-      const p = output[(runCount + i) % output.length];
-      if (!p?.shopId || !p?.itemId) continue;
-      const cached = cache[String(p.itemId)];
-      if (!reviewCacheIsFresh(cached, config)) candidates.push({ index: (runCount + i) % output.length, p });
-    }
-    diagnostics.reviewCandidates = candidates.length;
-    for (const { index, p } of candidates) {
-      try {
-        const reviews = await fetchReviewsFromConfiguredProvider(p, config);
-        const fetchedAt = new Date().toISOString();
-        cache[String(p.itemId)] = { fetchedAt, fetchedAtMs: Date.now(), ...reviews };
-        output[index] = { ...p, reviews: reviews.reviews, reviewVideos: reviews.reviewVideos, productVideos: reviews.productVideos, reviewSource: 'Shopee-authorized', reviewFetchedAt: fetchedAt, reviewCount: reviews.totalCount };
-        diagnostics.reviewFetched++;
-      } catch (error) {
-        diagnostics.reviewErrors++;
-        diagnostics.errors.push(`review-provider ${p.itemId}: ${error?.message || 'erro desconhecido'}`);
-      }
-      await sleep(Math.max(250, Number(config.reviewRequestDelayMs || 650)));
-    }
-  }
-
-  const keepMs = Math.max(24, Number(config.reviewCacheKeepDays || 14)) * 86400000;
-  const pruned = {};
-  for (const [key, value] of Object.entries(cache)) if (Number(value?.fetchedAtMs) > Date.now() - keepMs) pruned[key] = value;
-  writeJson(REVIEW_CACHE_FILE, pruned);
-  diagnostics.reviewReadyProducts = output.filter((p) => Array.isArray(p?.reviews) && p.reviews.length).length;
-  diagnostics.reviewVideoProducts = output.filter((p) => (Array.isArray(p?.reviewVideos) && p.reviewVideos.length) || (Array.isArray(p?.productVideos) && p.productVideos.length)).length;
-  return output;
-}
-
 function normalizeProduct(product, affiliateLink) {
   const price = toNumber(product.priceMin || product.priceMax);
   const discount = toNumber(product.priceDiscountRate);
@@ -659,13 +534,7 @@ function normalizeProduct(product, affiliateLink) {
     category1: inferTag(product.productName),
     category2: '',
     category3: '',
-    updatedAt: new Date().toISOString(),
-    reviews: [],
-    reviewVideos: [],
-    productVideos: [],
-    reviewSource: '',
-    reviewFetchedAt: '',
-    reviewCount: 0
+    updatedAt: new Date().toISOString()
   };
 }
 
@@ -675,7 +544,6 @@ function fixedAsFallback(fixed, config = {}) {
   return fixed
     .filter((p) => !!p.offerLink)
     .filter((p) => parsePrice(p?.price) >= Number(config.minPrice || 10))
-    .filter((p) => ratingNumber(p?.rating) >= Number(config.minRating || 4.5))
     .filter((p) => {
       const name = p?.shopName || '';
       return !shopNameLooksInternational(name, config);
@@ -838,15 +706,6 @@ async function collectDynamicProducts(config, diagnostics, runCount) {
     }
   }
 
-  // Coleta obrigatória de produtos para cabelo liso/alisamento em TODAS as rodadas.
-  // Os mesmos filtros de preço, qualidade, loja e repetição continuam valendo.
-  try {
-    const lisoNodes = await collectLisoProducts(config, diagnostics);
-    for (const node of lisoNodes) { const id = String(node.itemId || ''); if (id) map.set(id, node); }
-  } catch (error) {
-    diagnostics.errors.push(`liso: ${explainShopeeError(error)}`);
-  }
-
   // Coleta complementar de produtos virais em TODAS as rodadas. Não é um
   // ranking oficial do TikTok; são termos de tendência usados como sementes de
   // descoberta e os resultados ainda precisam passar pelas regras de qualidade.
@@ -858,6 +717,18 @@ async function collectDynamicProducts(config, diagnostics, runCount) {
     }
   } catch (error) {
     diagnostics.errors.push(`viral: ${explainShopeeError(error)}`);
+  }
+
+  // Coleta OBRIGATÓRIA de produtos de cabelo liso, em TODAS as rodadas.
+  try {
+    const mandatoryNodes = await collectMandatoryProducts(config, diagnostics, runCount);
+    console.log(`  ✓ cabelo liso (obrigatório): ${mandatoryNodes.length} candidatos`);
+    for (const node of mandatoryNodes) {
+      const id = String(node.itemId || '');
+      if (id) map.set(id, node);
+    }
+  } catch (error) {
+    diagnostics.errors.push(`mandatory: ${explainShopeeError(error)}`);
   }
 
   // Coleta complementar de alta comissão em TODAS as rodadas, independente
@@ -893,20 +764,6 @@ async function collectDynamicProducts(config, diagnostics, runCount) {
 }
 
 
-async function collectLisoProducts(config, diagnostics) {
-  const all = Array.isArray(config?.lisoKeywords) ? config.lisoKeywords.filter(Boolean) : [];
-  const limit = Math.max(1, Math.min(Number(config?.lisoLimitPerKeyword || 35), 50));
-  const nodes = []; diagnostics.lisoQueries = 0; diagnostics.lisoCandidates = 0;
-  for (const keyword of all) {
-    try {
-      const data = await withRateLimitRetry(() => graphql(buildSearchQuery({ keyword, sortType: 2, page: 1, limit })), { retries: 2, baseDelayMs: 900 });
-      const found = data?.productOfferV2?.nodes || []; diagnostics.lisoQueries++; diagnostics.lisoCandidates += found.length; nodes.push(...found);
-    } catch (error) { diagnostics.errors.push(`liso "${keyword}": ${explainShopeeError(error)}`); }
-    await sleep(API_CALL_DELAY_MS);
-  }
-  return nodes;
-}
-
 async function collectViralProducts(config, diagnostics) {
   const all = Array.isArray(config?.viralKeywords) ? config.viralKeywords.filter(Boolean) : [];
   const count = Math.max(1, Math.min(Number(config?.viralKeywordsPerRun || 28), all.length || 1));
@@ -928,6 +785,48 @@ async function collectViralProducts(config, diagnostics) {
       nodes.push(...found);
     } catch (error) {
       diagnostics.errors.push(`viral "${keyword}": ${explainShopeeError(error)}`);
+    }
+    await sleep(API_CALL_DELAY_MS);
+  }
+  return nodes;
+}
+
+
+// Coleta OBRIGATÓRIA (cabelo liso / alisamento). Roda em TODA execução, fora da
+// rotação por lote das 861 keywords, para que a categoria nunca fique sem
+// candidatos. Gira as keywords e as páginas entre execuções, como o restante do
+// bot, para trazer produtos diferentes a cada ciclo (cooldown continua valendo).
+async function collectMandatoryProducts(config, diagnostics, runCount) {
+  const all = Array.isArray(config?.mandatoryKeywords) ? config.mandatoryKeywords.filter(Boolean) : [];
+  diagnostics.mandatoryQueries = 0;
+  diagnostics.mandatoryCandidates = 0;
+  if (!all.length) return [];
+  const count = Math.max(1, Math.min(Number(config?.mandatoryKeywordsPerRun || 24), all.length));
+  const offset = (Number(runCount || 0) * count) % all.length;
+  const keywords = Array.from({ length: count }, (_, i) => all[(offset + i) % all.length]);
+  const pages = Math.max(1, Math.min(Number(config?.mandatoryPages || 2), 4));
+  const limit = Math.max(1, Math.min(Number(config?.mandatoryLimitPerKeyword || 50), 50));
+  const sortType = pickSortType(config, runCount);
+  const pageStart = pickPageStart(config, runCount);
+  const nodes = [];
+  for (const keyword of keywords) {
+    for (let i = 0; i < pages; i++) {
+      try {
+        const data = await withRateLimitRetry(
+          () => graphql(buildSearchQuery({ keyword, sortType, page: pageStart + i, limit })),
+          { retries: 2, baseDelayMs: 900 }
+        );
+        const connection = data?.productOfferV2;
+        const found = connection?.nodes || [];
+        diagnostics.mandatoryQueries++;
+        diagnostics.mandatoryCandidates += found.length;
+        nodes.push(...found);
+        if (!connection?.pageInfo?.hasNextPage) break;
+      } catch (error) {
+        diagnostics.errors.push(`mandatory "${keyword}": ${explainShopeeError(error)}`);
+        break;
+      }
+      await sleep(API_CALL_DELAY_MS);
     }
     await sleep(API_CALL_DELAY_MS);
   }
@@ -1245,6 +1144,27 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
     return true;
   }
 
+  // Categorias OBRIGATÓRIAS (mandatoryQuotas em bot-config.json, ex.: "Cabelo Liso").
+  // Preenchidas antes de tudo: o produto ainda precisa passar em preço, nota,
+  // loja, link afiliado e estar fora do cooldown, mas a vaga é reservada.
+  const mandatoryQuotas = config.mandatoryQuotas || {};
+  diagnostics.mandatoryQuotaTarget = mandatoryQuotas;
+  diagnostics.mandatoryQuotaFilled = {};
+  for (const category of Object.keys(mandatoryQuotas)) {
+    const quota = Math.min(toNumber(mandatoryQuotas[category]), target - results.length);
+    if (quota <= 0) continue;
+    let filled = 0;
+    for (const { p } of fresh) {
+      if (filled >= quota) break;
+      if (inferTag(p.productName) !== category) continue;
+      if (await tryAddProduct(p)) filled++;
+    }
+    diagnostics.mandatoryQuotaFilled[category] = filled;
+    if (filled < quota) {
+      console.warn(`⚠️ Categoria obrigatória "${category}": só ${filled}/${quota} produtos elegíveis nesta rodada (o restante estaria em cooldown ou não passou nos filtros).`);
+    }
+  }
+
   // Primeiro garantimos algumas oportunidades de alta comissão. Essas vagas
   // são apenas uma parte do catálogo; elas não impedem a entrada de produtos
   // de baixa comissão quando forem melhores em preço/qualidade/vendas.
@@ -1380,8 +1300,6 @@ async function main() {
     allowUnknownShopType: false,
     allowLegacyPreviousWithoutShopType: true,
     blockedInternationalShopNamePatterns: ['international','importadora','importado','imports','china','japao','japão','usa','united','global','world','mundo mix','temu','aliexpress','shein','shop global','overseas'],
-    lisoKeywords: ['escova alisadora', 'prancha alisadora', 'chapinha profissional', 'pente alisador', 'escova secadora', 'escova de alisamento'],
-    lisoLimitPerKeyword: 35,
     viralKeywords: [],
     viralKeywordsPerRun: 28,
     viralLimitPerKeyword: 50,
@@ -1394,15 +1312,9 @@ async function main() {
     keywords: [],
     subIds: ['achadosshopeebsf'],
     trendingCategoryBoost: {},
-    categoryQuotas: { 'Liso & Alisamento': 8 },
-    reviewEnrichmentPerRun: 40,
-    reviewRefreshHours: 12,
-    reviewPageSize: 20,
-    maxReviewsPerProduct: 6,
-    reviewTimeoutMs: 12000,
-    reviewRequestDelayMs: 650,
-    reviewCacheKeepDays: 14,
-    reviewProviderConfigured: false
+    categoryQuotas: {},
+    mandatoryKeywords: [],
+    mandatoryQuotas: {}
   });
   const fixed = readJson(FIXED_FILE, []);
   const previous = readJson(OUTPUT_FILE, []);
@@ -1419,10 +1331,6 @@ async function main() {
   console.log(`⏱️ Atualização programada: a cada ${config.refreshIntervalMinutes || 30} minutos`);
   console.log(`🔁 Execução nº ${runCount} · sortType desta rodada: ${pickSortType(config, runCount)}`);
 
-  if (!String(process.env.SHOPEE_REVIEW_PROVIDER_URL || '').trim()) {
-    console.log('ℹ️ Reviews individuais: nenhum provider autorizado configurado; o bot não acessará endpoints internos protegidos da Shopee.');
-  }
-
   const diagnostics = {
     apiOk: true,
     runCount,
@@ -1437,14 +1345,6 @@ async function main() {
     freshPublished: 0,
     repeatPublished: 0,
     affiliateLinkFailures: 0,
-    lisoQueries: 0,
-    lisoCandidates: 0,
-    reviewCandidates: 0,
-    reviewFetched: 0,
-    reviewErrors: 0,
-    reviewReadyProducts: 0,
-    reviewVideoProducts: 0,
-    reviewProviderConfigured: false,
     errors: []
   };
 
@@ -1521,12 +1421,6 @@ async function main() {
     output = fixedAsFallback(uniqueFixed, config).map((p) => ({ ...p, source: 'fixed-fallback' }));
     source = 'fixed-fallback';
     console.warn('⚠️ Primeira execução sem retorno suficiente da API; publicando catálogo inicial fixo (temporário, até a próxima rodada trazer produtos reais).');
-  }
-
-  try {
-    output = await enrichOutputWithRealReviews(output, config, runCount, diagnostics);
-  } catch (error) {
-    diagnostics.errors.push(`review-enrichment: ${error?.message || 'erro desconhecido'}`);
   }
 
   const affiliateLinks = output.map((p) => p.affLink).filter(Boolean);
