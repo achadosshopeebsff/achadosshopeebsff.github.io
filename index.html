@@ -190,6 +190,13 @@
     .notif-name{min-width:0;flex:1;font:600 12px/1.2 Inter,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .notif-stars{flex:none;color:var(--accent);font-size:9.5px;letter-spacing:.5px}
     .notif-text{margin:5px 0 0;font:400 11.5px/1.38 Inter,sans-serif;color:rgba(251,248,238,.88);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .notif-product{display:flex;align-items:center;gap:9px;margin-top:7px;min-width:0}
+    .notif-product-img{width:42px;height:42px;flex:none;border-radius:10px;object-fit:cover;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.10);box-shadow:0 4px 12px rgba(0,0,0,.18)}
+    .notif-product-meta{min-width:0;flex:1}
+    .notif-product-title{font:600 10.5px/1.25 Inter,sans-serif;color:rgba(251,248,238,.92);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .notif-action{margin-top:6px;text-align:right;font:700 9.5px/1 Inter,sans-serif;letter-spacing:.03em;color:var(--accent)}
+    .notif[data-affiliate="false"] .notif-action{color:rgba(251,248,238,.42)}
+
     .notif:hover{border-color:rgba(255,255,255,.22);box-shadow:0 12px 32px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.13)}
     /* Telas largas: canto direito, fora da coluna central do título/botão */
     @media (min-width:960px){
@@ -449,13 +456,20 @@
       }
 
       function setImage(img, url, alt) {
-        if (!url) { img.hidden = true; img.removeAttribute('src'); return; }
+        const token = String(url || '');
+        img.dataset.imageToken = token;
+        if (!token) { img.hidden = true; img.removeAttribute('src'); return; }
         img.alt = alt || '';
         img.hidden = false;
         img.loading = 'eager';
         img.decoding = 'async';
-        img.onerror = () => { img.hidden = true; img.removeAttribute('src'); els.thumbEmoji.hidden = false; };
-        img.src = url;
+        img.onerror = () => {
+          if (img.dataset.imageToken !== token) return;
+          img.hidden = true;
+          img.removeAttribute('src');
+          els.thumbEmoji.hidden = false;
+        };
+        img.src = token;
       }
 
       function fillCard(p) {
@@ -470,7 +484,7 @@
         els.now.textContent = p.now || 'Consultar na Shopee';
         els.off.textContent = p.off || '';
         els.off.hidden = !p.off;
-        els.cta.href = p.affLink || p.productLink || '#';
+        els.cta.href = getAffiliateUrl(p) || p.productLink || '#';
         els.cta.setAttribute('aria-label', `Comprar ${p.title || 'produto'} na Shopee`);
         const imageUrl = resolveProductImage(p);
         if (imageUrl) { els.thumbEmoji.hidden = true; setImage(els.thumbImg, imageUrl, p.title || 'Produto'); }
@@ -481,6 +495,7 @@
         if (!url) return;
         const img = new Image();
         img.decoding = 'async';
+        img.referrerPolicy = 'no-referrer';
         img.src = url;
       }
 
@@ -491,7 +506,8 @@
       // gerando aquele atraso perceptível de ~1s antes da foto aparecer.
       function primeNextProduct() {
         state.nextProduct = pickProduct();
-        if (state.nextProduct?.image) preloadImage(state.nextProduct.image);
+        const nextImage = resolveProductImage(state.nextProduct);
+        if (nextImage) preloadImage(nextImage);
       }
 
       function ensureNextProductPrimed() {
@@ -502,20 +518,38 @@
       function reveal() {
         if (state.busy) return;
         if (!state.products.length) { els.status.textContent = 'Nenhum produto disponível no momento.'; return; }
-        state.busy = true; els.scanBtn.disabled = true; els.status.textContent = 'Buscando um achado…';
-        const stillValid = state.nextProduct && state.viewProducts.some((p) => p.id === state.nextProduct.id);
-        const p = stillValid ? state.nextProduct : pickProduct();
-        fillCard(p); els.scanner.classList.add('scanning');
-        playMediaFor(p);
-        primeNextProduct(); // já deixa o próximo pronto (foto em cache) para o clique seguinte
-        window.setTimeout(() => {
+        state.busy = true;
+        els.scanBtn.disabled = true;
+        els.status.textContent = 'Buscando um achado…';
+        els.scanner.classList.add('scanning');
+
+        try {
+          const stillValid = state.nextProduct && state.viewProducts.some((p) => productKey(p) === productKey(state.nextProduct));
+          const p = stillValid ? state.nextProduct : pickProduct();
+          if (!p) throw new Error('Nenhum produto elegível para o scanner.');
+
+          // O card e a mídia são independentes: um problema no vídeo não pode
+          // impedir a exibição do produto.
+          fillCard(p);
+          try { playMediaFor(p); } catch (mediaError) { console.warn('Falha na mídia do scanner:', mediaError); }
+          try { primeNextProduct(); } catch (primeError) { console.warn('Falha ao preparar próximo produto:', primeError); }
+
+          window.setTimeout(() => {
+            els.scanner.classList.remove('scanning');
+            els.card.classList.add('show');
+            els.card.setAttribute('aria-hidden', 'false');
+            els.again.style.display = 'block';
+            els.status.textContent = 'Achado encontrado.';
+            state.busy = false;
+            els.scanBtn.disabled = false;
+          }, 420);
+        } catch (error) {
+          console.error('Falha ao escanear produto:', error);
           els.scanner.classList.remove('scanning');
-          els.card.classList.add('show');
-          els.card.setAttribute('aria-hidden', 'false');
-          els.again.style.display = 'block';
-          els.status.textContent = 'Achado encontrado.';
-          state.busy = false; els.scanBtn.disabled = false;
-        }, 420);
+          state.busy = false;
+          els.scanBtn.disabled = false;
+          els.status.textContent = 'Não foi possível revelar este achado. Tente novamente.';
+        }
       }
 
       function renderGrid() {
@@ -669,6 +703,15 @@
         video.play().catch(() => {});
       }
 
+      // Compatibilidade: o card/notificação usa playMediaFor(product).
+      // Antes essa função não existia, então o clique em Escanear lançava
+      // ReferenceError depois de marcar state.busy=true e o botão ficava travado.
+      function playMediaFor(product) {
+        if (!product) return;
+        const ownVideo = state.media[productKey(product)]?.video?.url || '';
+        setScanVideo(ownVideo, product);
+      }
+
       function primePersistentVideo() {
         const first = findAnyVideoProduct();
         if (first) setScanVideo(state.media[productKey(first)]?.video?.url, first);
@@ -697,8 +740,10 @@
       // usuário. Comentários só entram quando existem no product-media.json;
       // promoções/achados usam o catálogo real e o link de afiliado do produto.
       const NOTIF_APP_NAME = 'achadosshopeebsf';
-      const NOTIF = { firstDelay: 1200, interval: 60000, life: 8200, gapPx: 8 };
-      const notifTiming = () => ({ gap: 60000, life: 8200, maxVisible: 1, max: 1 });
+      // Uma notificação por minuto, permanecendo na tela por tempo suficiente
+      // para ser lida/clicada sem parecer que "sumiu".
+      const NOTIF = { firstDelay: 2500, interval: 60000, life: 18000, gapPx: 8 };
+      const notifTiming = () => ({ gap: 60000, life: 18000, maxVisible: 1, max: 1 });
       const notif = { active: [] };
       const AVATAR_COLORS = ['#c2410c', '#b45309', '#a21caf', '#0f766e', '#1d4ed8', '#be123c', '#4d7c0f'];
 
@@ -720,11 +765,28 @@
       }
 
       function getAffiliateUrl(product) {
-        const raw = product?.affLink || product?.productLink || '';
+        // Preferimos SEMPRE o link de afiliado. Só usamos chaves alternativas
+        // quando o próprio catálogo as tiver nomeado como afiliadas.
+        const affiliateCandidates = [
+          product?.affLink,
+          product?.affiliateLink,
+          product?.affiliateUrl,
+          product?.affiliate_url,
+          product?.aff_url,
+          product?.trackingLink,
+          product?.trackingUrl
+        ];
+        const raw = affiliateCandidates.find((value) => String(value || '').trim()) || '';
+        if (!raw) return '#';
         try {
-          const u = new URL(raw, location.href);
-          return u.protocol === 'https:' ? u.href : '#';
+          const u = new URL(String(raw).trim(), location.href);
+          if (u.protocol !== 'https:') return '#';
+          return u.href;
         } catch { return '#'; }
+      }
+
+      function getProductDestination(product) {
+        return getAffiliateUrl(product) || '#';
       }
 
       function buildNotif(payload) {
@@ -734,6 +796,8 @@
         el.setAttribute('role', 'link');
         const affiliateUrl = getAffiliateUrl(product);
         const title = String(product?.title || 'Produto Shopee').trim();
+        const isAffiliate = affiliateUrl !== '#';
+        el.dataset.affiliate = isAffiliate ? 'true' : 'false';
         const head = mk('div', 'notif-head');
         const icon = mk('img', 'notif-app'); icon.src = 'notif-icon.png'; icon.alt = ''; icon.width = 14; icon.height = 14;
         head.append(icon, mk('span', 'notif-appname', NOTIF_APP_NAME), mk('span', 'notif-time', type === 'review' ? relTime(review?.at) : 'agora'));
@@ -759,11 +823,35 @@
               ? `⚡ ${title} está em promoção por ${product.now || 'um preço especial'}.`
               : `🛍️ ${title} apareceu como novo achado por ${product.now || 'um preço especial'}.`);
 
-        el.append(head, who, mk('p', 'notif-text', message));
-        el.setAttribute('aria-label', `Abrir ${title} na Shopee`);
+        el.append(head, who);
+
+        const productRow = mk('div', 'notif-product');
+        const productImage = mk('img', 'notif-product-img');
+        const notifImageUrl = resolveProductImage(product);
+        productImage.alt = title;
+        productImage.width = 42;
+        productImage.height = 42;
+        productImage.loading = 'eager';
+        productImage.decoding = 'async';
+        productImage.referrerPolicy = 'no-referrer';
+        if (notifImageUrl) {
+          productImage.src = notifImageUrl;
+        } else {
+          productImage.style.display = 'none';
+        }
+        productImage.addEventListener('error', () => {
+          productImage.style.display = 'none';
+        }, { once: true });
+        const productMeta = mk('div', 'notif-product-meta');
+        productMeta.append(mk('div', 'notif-product-title', title));
+        productRow.append(productImage, productMeta);
+        const action = mk('div', 'notif-action', isAffiliate ? 'Ver oferta →' : 'Oferta indisponível');
+        action.setAttribute('aria-hidden', 'true');
+        el.append(productRow, mk('p', 'notif-text', message), action);
+        el.setAttribute('aria-label', isAffiliate ? `Abrir ${title} pelo link de afiliado` : `${title} sem link de afiliado disponível`);
         el.addEventListener('click', () => {
           if (affiliateUrl === '#') return;
-          // Atualiza o produto mostrado no scanner antes de seguir para o link afiliado.
+          // A notificação navega SOMENTE para o link de afiliado validado acima.
           try {
             fillCard(product);
             playMediaFor(product);
@@ -771,7 +859,7 @@
             els.card.setAttribute('aria-hidden', 'false');
             els.again.style.display = 'block';
           } catch {}
-          window.location.href = affiliateUrl;
+          window.location.assign(affiliateUrl);
         });
         el.addEventListener('keydown', (event) => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -799,7 +887,10 @@
         window.clearTimeout(n.timer);
         n.el.classList.add('is-leaving');
         layoutNotifs();
-        window.setTimeout(() => n.el.remove(), 800);
+        window.setTimeout(() => {
+          n.el.remove();
+          if (!notif.active.length) els.notifLayer.setAttribute('aria-hidden', 'true');
+        }, 800);
       }
 
       function playNotificationSound() {
@@ -846,6 +937,7 @@
         [...notif.active].forEach(dismissNotif);
         const el = buildNotif(payload);
         els.notifLayer.appendChild(el);
+        els.notifLayer.setAttribute('aria-hidden', 'false');
         const n = { el, timer: 0 };
         notif.active.unshift(n);
         layoutNotifs();
@@ -1019,7 +1111,7 @@
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
           state.products = Array.isArray(data) ? data.filter(p => {
-            if (!p || !(p.title || p.productName) || !(p.affLink || p.productLink)) return false;
+            if (!p || !(p.title || p.productName) || !(p.affLink || p.affiliateLink || p.affiliateUrl || p.affiliate_url || p.aff_url || p.trackingLink || p.trackingUrl || p.productLink)) return false;
             const raw = String(p.now || '').replace(/[^0-9,.]/g, '');
             const price = raw.includes(',') ? Number(raw.replace(/\./g, '').replace(',', '.')) : Number(raw);
             const rating = Number(p.rating || 0);
