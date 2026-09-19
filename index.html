@@ -160,10 +160,15 @@
     footer p{max-width:620px;margin:0 auto;color:var(--muted);font-size:12px;line-height:1.7}
     .badge{display:inline-flex;gap:7px;align-items:center;color:var(--shopee,var(--primary));font:600 11px "JetBrains Mono",monospace;text-transform:uppercase;margin-bottom:14px}
     .credit{margin-top:14px;color:var(--muted);font:700 12px "Space Grotesk",sans-serif}
+    .instagram-link{display:inline-flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;padding:9px 13px;border:1px solid var(--border);border-radius:999px;color:var(--text);text-decoration:none;font:700 12px Inter,sans-serif;background:rgba(255,255,255,.04);transition:transform .18s ease,background .18s ease,border-color .18s ease}
+    .instagram-link svg{width:18px;height:18px;flex:none}
+    .instagram-link:hover{transform:translateY(-1px);background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.22)}
+    .notif.is-dragging{transition:none!important;animation:none!important}
+
     /* ===== Notificações flutuantes (avaliações reais) — estilo banner de iPhone, translúcido ===== */
     .notif-layer{position:fixed;z-index:40;top:calc(env(safe-area-inset-top,0px) + 64px);left:0;right:0;margin-inline:auto;width:min(248px,calc(100vw - 24px));height:0;pointer-events:none}
     .notif{
-      position:absolute;left:0;right:0;top:0;--y:0px;--s:1;pointer-events:auto;cursor:pointer;
+      position:absolute;left:0;right:0;top:0;--y:0px;--s:1;pointer-events:auto;cursor:pointer;touch-action:pan-y;user-select:none;
       transform:translate3d(0,var(--y),0) scale(var(--s));transform-origin:50% 0;
       transition:transform .65s cubic-bezier(.2,.8,.2,1),opacity .55s ease;
       padding:8px 11px 10px;border-radius:16px;color:var(--text);
@@ -253,6 +258,7 @@
       <div class="nav-links">
         <a href="#scan">Escanear</a>
         <a href="#achados">Achados</a>
+        <a href="#sobre">Sobre</a>
       </div>
     </nav>
   </header>
@@ -264,7 +270,7 @@
     <section class="hero wrap" id="scan" aria-labelledby="hero-title">
       <div class="eyebrow glass"><span class="live" aria-hidden="true"></span> radar de achados · shopee</div>
       <h1 id="hero-title">Encontre seu próximo<br><span class="grad">achado</span> em segundos.</h1>
-      <p class="sub">Produtos selecionados automaticamente da Shopee com foto, preço e link de afiliado atualizado.</p>
+      <p class="sub">Produtos selecionados automaticamente da Shopee de forma inteligente, priorizando qualidade, boas avaliações e excelentes oportunidades de compra.</p>
 
       <div class="scanner" id="scanner">
         <!-- Vídeo do produto atual: SEM SOM, decorativo, fica atrás do botão -->
@@ -334,9 +340,17 @@
   </main>
 
   <div class="wrap">
-    <footer class="glass">
+    <footer class="glass" id="sobre">
       <div class="badge">● produtos Shopee</div>
       <p>Este site contém links de afiliado da Shopee. Ao clicar e comprar através deles, podemos receber uma pequena comissão, sem custo adicional para você. Preços e disponibilidade podem mudar; confira os detalhes finais na Shopee.</p>
+      <a class="instagram-link" href="https://www.instagram.com/achadosshopeebsff/" target="_blank" rel="noopener noreferrer" aria-label="Instagram do Achados Shopee BSFF" title="Instagram do Achados Shopee BSFF">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="5"></rect>
+          <circle cx="12" cy="12" r="4"></circle>
+          <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"></circle>
+        </svg>
+        <span>Instagram</span>
+      </a>
       <div class="credit">achadosshopeebsf</div>
     </footer>
   </div>
@@ -764,6 +778,66 @@
         return el;
       }
 
+      function enableNotificationSwipe(el, dismiss) {
+        let startX = 0;
+        let currentX = 0;
+        let dragging = false;
+        let swiped = false;
+
+        const onPointerDown = (event) => {
+          if (event.pointerType === 'mouse' && event.button !== 0) return;
+          startX = event.clientX;
+          currentX = startX;
+          dragging = true;
+          swiped = false;
+          el.classList.add('is-dragging');
+          try { el.setPointerCapture(event.pointerId); } catch {}
+        };
+
+        const onPointerMove = (event) => {
+          if (!dragging) return;
+          currentX = event.clientX;
+          const dx = currentX - startX;
+          // Só arrasta horizontalmente; o usuário continua podendo rolar a página.
+          if (Math.abs(dx) < 4) return;
+          if (event.cancelable) event.preventDefault();
+          const y = el.style.getPropertyValue('--y') || '0px';
+          const scale = el.style.getPropertyValue('--s') || '1';
+          el.style.transform = `translate3d(${dx}px, ${y}, 0) scale(${scale}) rotate(${Math.max(-5, Math.min(5, dx / 28))}deg)`;
+        };
+
+        const finish = (event) => {
+          if (!dragging) return;
+          dragging = false;
+          const dx = currentX - startX;
+          el.classList.remove('is-dragging');
+          try { el.releasePointerCapture(event.pointerId); } catch {}
+
+          if (Math.abs(dx) >= 72) {
+            swiped = true;
+            const direction = dx < 0 ? -1 : 1;
+            el.style.transition = 'transform .28s ease, opacity .28s ease';
+            el.style.transform = `translate3d(${direction * Math.max(window.innerWidth, 420)}px, ${el.style.getPropertyValue('--y') || '0px'}, 0) rotate(${direction * 8}deg)`;
+            el.style.opacity = '0';
+            window.setTimeout(() => dismiss(), 230);
+          } else {
+            el.style.transform = '';
+          }
+        };
+
+        el.addEventListener('pointerdown', onPointerDown);
+        el.addEventListener('pointermove', onPointerMove);
+        el.addEventListener('pointerup', finish);
+        el.addEventListener('pointercancel', finish);
+        el.addEventListener('click', (event) => {
+          if (swiped) {
+            swiped = false;
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+      }
+
       function getAffiliateUrl(product) {
         // Preferimos SEMPRE o link de afiliado. Só usamos chaves alternativas
         // quando o próprio catálogo as tiver nomeado como afiliadas.
@@ -819,9 +893,7 @@
 
         const message = type === 'review'
           ? `${title}: “${String(review?.text || '').trim()}”`
-          : (product?.off || product?.old
-              ? `⚡ ${title} está em promoção por ${product.now || 'um preço especial'}.`
-              : `🛍️ ${title} apareceu como novo achado por ${product.now || 'um preço especial'}.`);
+          : `⚡ ${title} está em promoção por ${product.now || 'um preço especial'}.`;
 
         el.append(head, who);
 
@@ -845,7 +917,7 @@
         const productMeta = mk('div', 'notif-product-meta');
         productMeta.append(mk('div', 'notif-product-title', title));
         productRow.append(productImage, productMeta);
-        const action = mk('div', 'notif-action', isAffiliate ? 'Ver oferta →' : 'Oferta indisponível');
+        const action = mk('div', 'notif-action', isAffiliate ? 'Ver promoção →' : 'Promoção indisponível');
         action.setAttribute('aria-hidden', 'true');
         el.append(productRow, mk('p', 'notif-text', message), action);
         el.setAttribute('aria-label', isAffiliate ? `Abrir ${title} pelo link de afiliado` : `${title} sem link de afiliado disponível`);
@@ -939,6 +1011,7 @@
         els.notifLayer.appendChild(el);
         els.notifLayer.setAttribute('aria-hidden', 'false');
         const n = { el, timer: 0 };
+        enableNotificationSwipe(el, () => dismissNotif(n));
         notif.active.unshift(n);
         layoutNotifs();
         void el.offsetWidth;
