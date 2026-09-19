@@ -154,6 +154,17 @@ function buildSearchQuery({ keyword, sortType = 1, page = 1, limit = 50, listTyp
   }`;
 }
 
+// Consulta direta por itemId (+shopId). Usada só para PRODUTOS FIXADOS.
+function buildItemQuery({ itemId, shopId = '' }) {
+  const shopArg = /^\d+$/.test(String(shopId)) ? `, shopId: ${shopId}` : '';
+  return `query {
+    productOfferV2(itemId: ${itemId}${shopArg}, page: 1, limit: 5) {
+      nodes { ${productFields()} }
+      pageInfo { page limit hasNextPage }
+    }
+  }`;
+}
+
 function buildTopQuery({ page = 1, limit = 50, includeSortType = true }) {
   // listType 2 = "top performing" da Shopee. Em algumas contas/momentos a API
   // rejeita esse listType combinado com sortType (erro [11001] Parâmetros
@@ -313,7 +324,7 @@ function catalogMinPrice(product) {
 // mesmo que o texto mencione "celular"/marca de telefone em algum ponto —
 // ex.: "bolso para celular", "capinha iphone", "suporte para smartphone".
 function looksLikePhoneAccessoryOrUnrelated(n) {
-  return /capinha|capa (para|de)|pel[ií]cula|suporte|\bcase\b|bolso|porta[- ]?celular|cord[ãa]o|bra[çc]adeira|pop ?socket|trip[ée]|\bcabo\b|carregador|\bfone\b|power ?bank|adaptador|\bhub\b|\banel\b|\bshort\b|bermuda|cal[çc]a\b|legging|compress[ãa]o|academia|treino|moletom|jaqueta|camiseta|regata|\bkit\s*\d/i.test(n);
+  return /capinha|capa (para|de)|pel[ií]cula|suporte|\bcase\b|bolso|porta[- ]?celular|cord[ãa]o|bra[çc]adeira|pop ?socket|trip[ée]|\bcabo\b|carregador|\bfone\b|power ?bank|adaptador|\bhub\b|\banel\b|\bshort\b|bermuda|cal[çc]a\b|legging|compress[ãa]o|academia|treino|moletom|jaqueta|camiseta|regata|\bkit\s*\d|cart[aã]o de mem[oó]ria|micro ?sd|pen ?drive|pendrive|\botg\b|\bssd\b|\bhd\b|microfone|lapela|caneta|gimbal|estabilizador|selfie|ring ?light|gamepad|joystick|\blente\b|tela (para|de)|bateria (para|de)|carca[cç]a|protetor|vidro/i.test(n);
 }
 
 // Só considera "o aparelho em si" quando o texto tem marca+modelo de celular
@@ -329,6 +340,10 @@ function isRealPhoneListing(n) {
     /\bpoco\s*[a-z]?\s*\d/i.test(n) ||
     /\bgalaxy\s*[as]\d/i.test(n) ||
     /\bmoto\s*g\d/i.test(n) ||
+    /\bmoto\s*(e|edge)\s?\d/i.test(n) ||
+    /\bgalaxy\s*[ams]\s?\d/i.test(n) ||
+    /\b(realme|infinix|tecno|zte|nokia|honor|oppo|xiaomi|multilaser|zenfone)\b[^.]*\b\d+\s?gb\b/i.test(n) ||
+    /\bcelular\b[^.]*\b(5g|4g|dual\s?chip|desbloqueado)\b/i.test(n) ||
     (/\bcelular\b/i.test(n) && /\d+\s?gb/i.test(n))
   );
 }
@@ -360,8 +375,13 @@ function inferTag(name) {
   // propósito para não capturar coisas como "lente progressiva", "prancha de
   // surf" ou "alisador de massa".
   if (
-    /chapinha|prancha\s+(alisadora|de\s+cabelo|para\s+cabelo|profissional|cer[aâ]mica|titanium|bivolt|450|modeladora)|alisador(?!\s+(de\s+)?(massa|cimento|piso|concreto|parede|reboco))|alisante|alisamento|escova\s+(alisadora|secadora|modeladora|rotativa\s+secadora|el[eé]trica\s+alisadora)|pente\s+(alisador|el[eé]trico\s+alisador)|(kit|escova|creme|cabelo)\s+progressiva|progressiva\s+(sem|capilar|org[aâ]nica|para|de|kit)|selagem\s+(capilar|t[eé]rmica|de\s+cabelo)|kit\s+selagem|botox\s+capilar|cauteriza[cç][aã]o|cabelos?\s+lisos?|efeito\s+liso|liso\s+(espelhado|definitivo|perfeito)|ativador\s+de\s+liso|secador\s+(i[oô]nico|profissional)|protetor\s+t[eé]rmico/i.test(n)
+    /chapinha|prancha\s+(alisadora|de\s+cabelo|para\s+cabelo|profissional|cer[aâ]mica|titanium|bivolt|450|modeladora)|alisador(?!\s+(de\s+)?(massa|cimento|piso|concreto|parede|reboco))|alisante|alisamento|escova\s+(alisadora|secadora|modeladora|rotativa\s+secadora|el[eé]trica\s+alisadora)|pente\s+(alisador|el[eé]trico\s+alisador)|(kit|escova|creme|cabelo)\s+progressiva|progressiva\s+(sem|capilar|org[aâ]nica|para|de|kit)|selagem\s+(capilar|t[eé]rmica|de\s+cabelo)|kit\s+selagem|botox\s+capilar|cauteriza[cç][aã]o|cabelos?\s+lisos?|liso\s+obrigat[oó]rio|efeito\s+liso|liso\s+(espelhado|definitivo|perfeito)|ativador\s+de\s+liso|secador\s+(i[oô]nico|profissional)|protetor\s+t[eé]rmico/i.test(n)
   ) return 'Cabelo Liso';
+
+  // Caixas de Som — categoria própria (antes ficavam misturadas em Eletrônicos e
+  // quase não apareciam). Checada antes de Smartphones porque títulos como
+  // "Caixa de Som para Smartphone" não são celular.
+  if (/caixa\s+de\s+som|caixinha\s+de\s+som|soundbar|sound\s?bar|subwoofer|\bspeaker\b/i.test(n)) return 'Caixas de Som';
 
   // Smartphones — checado ANTES de Auto & Moto de propósito: "Motorola Moto
   // G84" tem "moto" no nome e seria capturado por engano como item de moto se
@@ -413,7 +433,7 @@ function inferTag(name) {
   // especificamente "para notebook/laptop" (senão mochila escolar/esportiva
   // qualquer virava "Eletrônicos" por engano).
   if (
-    /fone|bluetooth|tws|watch|rel[oó]gio|nfc|smart|eletr[oô]nico|power ?bank|carregador|cabo usb|ring ?light|projetor|impressora|mouse|teclado|hub usb|drone|r[aá]dio comunicador|c[aâ]mera de seguran[cç]a|capinha|pel[ií]cula|capa (para|de) (celular|iphone|smartphone)|suporte (para|de) (celular|smartphone)/i.test(n) ||
+    /fone|bluetooth|tws|watch|rel[oó]gio|nfc|smart|eletr[oô]nico|power ?bank|carregador|cabo usb|ring ?light|projetor|impressora|mouse|teclado|hub usb|drone|r[aá]dio comunicador|c[aâ]mera de seguran[cç]a|c[aâ]mera (wi-?fi|ip)|microfone|lapela|cart[aã]o de mem[oó]ria|pen ?drive|pendrive|\botg\b|\bssd\b|webcam|gamepad|joystick|tomada inteligente|ventilador (port[aá]til|de pesco[cç]o)|capinha|pel[ií]cula|capa (para|de) (celular|iphone|smartphone)|suporte (para|de) (celular|smartphone)/i.test(n) ||
     looksLikeNotebookAccessory(n)
   ) return 'Eletrônicos';
 
@@ -495,9 +515,15 @@ function scoreProduct(p, config) {
   const boostMap = { ...(config?.trendingCategoryBoost || {}), ...(config?.viralCategoriesBoost || {}) };
   const categoryBoost = toNumber(boostMap[inferTag(p.productName)], 0);
 
+  // Comissão esperada por venda (R$ = preço x comissão): um produto de R$ 300
+  // com 8% paga bem mais por venda que um de R$ 15 com 10%. Teto baixo (10) para
+  // NÃO passar por cima de nota/vendas — qualidade continua mandando.
+  const expectedCommission = price > 0 ? (price * commission) / 100 : 0;
+  const expectedCommissionScore = Math.min(10, Math.log10(1 + expectedCommission) * 6);
+
   return priceScore + salesScore + ratingScore + discountScore + flashBonus +
     commissionScore + commissionBonus + ratingBonus + cheapQualityBonus +
-    perfectFindBonus + viralBonus + categoryBoost;
+    perfectFindBonus + viralBonus + categoryBoost + expectedCommissionScore;
 }
 
 function normalizeProduct(product, affiliateLink) {
@@ -584,7 +610,10 @@ const SORT_TYPE_ROTATION = [2, 5, 1, 4];
 
 function pickSortType(config, runCount) {
   if (config.rotateSortType === false) return 2;
-  return SORT_TYPE_ROTATION[runCount % SORT_TYPE_ROTATION.length];
+  const rotation = Array.isArray(config.sortTypeRotation) && config.sortTypeRotation.length
+    ? config.sortTypeRotation
+    : SORT_TYPE_ROTATION;
+  return rotation[runCount % rotation.length];
 }
 
 // Além de girar o sortType a cada execução, também giramos a PÁGINA inicial
@@ -731,11 +760,32 @@ async function collectDynamicProducts(config, diagnostics, runCount) {
     diagnostics.errors.push(`mandatory: ${explainShopeeError(error)}`);
   }
 
+  // Produtos de ticket mais alto (celular, notebook, TV, eletrodoméstico...) — em rodízio.
+  try {
+    const premiumNodes = await collectPremiumProducts(config, diagnostics, runCount);
+    console.log(`  ✓ ticket alto (premium): ${premiumNodes.length} candidatos`);
+    for (const node of premiumNodes) {
+      const id = String(node.itemId || '');
+      if (id) map.set(id, node);
+    }
+  } catch (error) {
+    diagnostics.errors.push(`premium: ${explainShopeeError(error)}`);
+  }
+
+  // Produtos FIXADOS (ex.: kit Belkit Liso Obrigatório) — sempre buscados.
+  try {
+    const pinnedNodes = await collectPinnedProducts(config, diagnostics);
+    for (const node of pinnedNodes) map.set(String(node.itemId), node);
+    if (pinnedNodes.length) console.log(`  📌 produtos fixados encontrados: ${pinnedNodes.length}`);
+  } catch (error) {
+    diagnostics.errors.push(`pinned: ${explainShopeeError(error)}`);
+  }
+
   // Coleta complementar de alta comissão em TODAS as rodadas, independente
   // do sortType rotativo principal. O resultado ainda passa por qualidade,
   // deduplicação e pelo limite máximo de participação de comissão no catálogo.
   try {
-    const highCommissionNodes = await collectHighCommissionProducts(config, diagnostics);
+    const highCommissionNodes = await collectHighCommissionProducts(config, diagnostics, runCount);
     for (const node of highCommissionNodes) {
       const id = String(node.itemId || '');
       if (id) map.set(id, node);
@@ -834,10 +884,127 @@ async function collectMandatoryProducts(config, diagnostics, runCount) {
 }
 
 
-async function collectHighCommissionProducts(config, diagnostics) {
-  const keywords = Array.isArray(config.highCommissionKeywords)
-    ? config.highCommissionKeywords.filter(Boolean).slice(0, 10)
+// PRODUTOS FIXADOS (pinnedProducts em bot-config.json): entram em TODA rodada, em
+// primeiro lugar, ignorando o cooldown anti-repetição — são escolhas do dono do
+// site. Continuam passando nos filtros de preço/nota/loja e usam SEMPRE o link
+// de afiliado devolvido pela API da sua conta. Ordem de busca: (1) direto por
+// itemId; (2) por nome, aceitando só o MESMO itemId quando ele foi informado, ou
+// o melhor casamento de título quando não foi.
+const normText = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+async function collectPinnedProducts(config, diagnostics) {
+  const pins = Array.isArray(config?.pinnedProducts) ? config.pinnedProducts : [];
+  diagnostics.pinned = [];
+  const found = [];
+  for (const pin of pins) {
+    const label = String(pin?.name || pin?.itemId || 'produto fixado').slice(0, 100);
+    const wantId = /^\d+$/.test(String(pin?.itemId || '')) ? String(pin.itemId) : '';
+    const wantShop = /^\d+$/.test(String(pin?.shopId || '')) ? String(pin.shopId) : '';
+    let node = null;
+    let via = '';
+
+    if (wantId) {
+      try {
+        const data = await withRateLimitRetry(
+          () => graphql(buildItemQuery({ itemId: wantId, shopId: wantShop })),
+          { retries: 2, baseDelayMs: 900 }
+        );
+        node = (data?.productOfferV2?.nodes || []).find((n) => String(n?.itemId) === wantId) || null;
+        if (node) via = 'itemId';
+      } catch (error) {
+        diagnostics.errors.push(`pinned itemId ${wantId}: ${explainShopeeError(error)}`);
+      }
+      await sleep(API_CALL_DELAY_MS);
+    }
+
+    if (!node) {
+      const must = (pin?.mustInclude || []).map(normText);
+      const should = (pin?.shouldInclude || []).map(normText);
+      for (const query of pin?.queries || []) {
+        try {
+          const data = await withRateLimitRetry(
+            () => graphql(buildSearchQuery({ keyword: query, sortType: 1, page: 1, limit: 50 })),
+            { retries: 2, baseDelayMs: 900 }
+          );
+          const nodes = data?.productOfferV2?.nodes || [];
+          if (wantId) {
+            node = nodes.find((n) => String(n?.itemId) === wantId) || null;
+          } else {
+            let best = null;
+            let bestScore = -1;
+            for (const n of nodes) {
+              const title = normText(n?.productName);
+              if (!must.every((m) => title.includes(m))) continue;
+              const score = should.filter((w) => title.includes(w)).length * 10 + Math.log10(1 + Number(n?.sales || 0));
+              if (score > bestScore) { best = n; bestScore = score; }
+            }
+            node = best;
+          }
+          if (node) { via = `busca "${query}"`; break; }
+        } catch (error) {
+          diagnostics.errors.push(`pinned "${query}": ${explainShopeeError(error)}`);
+        }
+        await sleep(API_CALL_DELAY_MS);
+      }
+    }
+
+    diagnostics.pinned.push({ name: label, found: !!node, via: via || null });
+    if (node) found.push({ ...node, __pinned: true });
+    else console.warn(`⚠️ Produto fixado NÃO encontrado pela API de afiliados: ${label}`);
+  }
+  return found;
+}
+
+// Coleta de produtos de TICKET MAIS ALTO (premiumKeywords em bot-config.json):
+// celular, notebook, TV, eletrodoméstico, games etc. Ordena por VENDAS (sortType 2)
+// ou relevância (1), nunca por preço, para trazer o que realmente vende. O portão
+// de qualidade por faixa de preço (qualityByPriceTier) decide quem entra depois.
+async function collectPremiumProducts(config, diagnostics, runCount) {
+  const all = Array.isArray(config?.premiumKeywords) ? config.premiumKeywords.filter(Boolean) : [];
+  diagnostics.premiumQueries = 0;
+  diagnostics.premiumCandidates = 0;
+  if (!all.length) return [];
+  const count = Math.max(1, Math.min(Number(config?.premiumKeywordsPerRun || 40), all.length));
+  const offset = (Number(runCount || 0) * count) % all.length;
+  const keywords = Array.from({ length: count }, (_, i) => all[(offset + i) % all.length]);
+  const pages = Math.max(1, Math.min(Number(config?.premiumPages || 2), 3));
+  const limit = Math.max(1, Math.min(Number(config?.premiumLimitPerKeyword || 50), 50));
+  const sortType = Number(runCount || 0) % 2 === 0 ? 2 : 1;
+  const pageStart = pickPageStart(config, runCount);
+  const nodes = [];
+  for (const keyword of keywords) {
+    for (let i = 0; i < pages; i++) {
+      try {
+        const data = await withRateLimitRetry(
+          () => graphql(buildSearchQuery({ keyword, sortType, page: pageStart + i, limit })),
+          { retries: 2, baseDelayMs: 900 }
+        );
+        const connection = data?.productOfferV2;
+        const found = connection?.nodes || [];
+        diagnostics.premiumQueries++;
+        diagnostics.premiumCandidates += found.length;
+        nodes.push(...found);
+        if (!connection?.pageInfo?.hasNextPage) break;
+      } catch (error) {
+        diagnostics.errors.push(`premium "${keyword}": ${explainShopeeError(error)}`);
+        break;
+      }
+      await sleep(API_CALL_DELAY_MS);
+    }
+    await sleep(API_CALL_DELAY_MS);
+  }
+  return nodes;
+}
+
+async function collectHighCommissionProducts(config, diagnostics, runCount = 0) {
+  const allKeywords = Array.isArray(config.highCommissionKeywords) && config.highCommissionKeywords.length
+    ? config.highCommissionKeywords.filter(Boolean)
     : ['ofertas', 'promocao', 'moda', 'beleza', 'casa', 'cozinha', 'eletronicos', 'fitness'];
+  // Rodízio: highCommissionKeywordsPerRun termos por execução (padrão 10, como antes).
+  const perRun = Math.max(1, Math.min(Number(config.highCommissionKeywordsPerRun || 10), allKeywords.length));
+  const offset = (Number(runCount || 0) * perRun) % allKeywords.length;
+  const keywords = Array.from({ length: perRun }, (_, i) => allKeywords[(offset + i) % allKeywords.length]);
+  const pages = Math.max(1, Math.min(Number(config.highCommissionPages || 1), 3));
   const limit = Math.max(1, Math.min(config.highCommissionLimitPerKeyword || 30, 100));
   const nodes = [];
   diagnostics.highCommissionQueries = 0;
@@ -848,23 +1015,29 @@ async function collectHighCommissionProducts(config, diagnostics) {
   // sortType principal seja vendas/preço ainda tenha acesso a boas ofertas de
   // afiliado.
   for (const keyword of keywords) {
-    try {
-      const data = await withRateLimitRetry(
-        () => graphql(buildSearchQuery({
-          keyword,
-          sortType: 5,
-          page: 1,
-          limit,
-          listType: 1
-        })),
-        { retries: 2, baseDelayMs: 900 }
-      );
-      const found = data?.productOfferV2?.nodes || [];
-      diagnostics.highCommissionQueries++;
-      diagnostics.highCommissionCandidates += found.length;
-      nodes.push(...found);
-    } catch (error) {
-      diagnostics.errors.push(`high-commission "${keyword}": ${explainShopeeError(error)}`);
+    for (let page = 1; page <= pages; page++) {
+      try {
+        const data = await withRateLimitRetry(
+          () => graphql(buildSearchQuery({
+            keyword,
+            sortType: 5,
+            page,
+            limit,
+            listType: 1
+          })),
+          { retries: 2, baseDelayMs: 900 }
+        );
+        const connection = data?.productOfferV2;
+        const found = connection?.nodes || [];
+        diagnostics.highCommissionQueries++;
+        diagnostics.highCommissionCandidates += found.length;
+        nodes.push(...found);
+        if (!connection?.pageInfo?.hasNextPage) break;
+      } catch (error) {
+        diagnostics.errors.push(`high-commission "${keyword}": ${explainShopeeError(error)}`);
+        break;
+      }
+      await sleep(API_CALL_DELAY_MS);
     }
     await sleep(API_CALL_DELAY_MS);
   }
@@ -1048,6 +1221,27 @@ function passesQualityBar(p, config) {
   if (rating > 0 && rating < minRating) return false;
 
   if (!isBrazilMarketplaceOffer(p, config)) return false;
+
+  // Faixas de preço mais altas exigem PROVA de qualidade: mais vendas e nota
+  // maior (bot-config.json > qualityByPriceTier). Item caro sem histórico de
+  // venda não entra, por mais comissão que pague.
+  const sales = toNumber(p.sales);
+  for (const tier of Array.isArray(config?.qualityByPriceTier) ? config.qualityByPriceTier : []) {
+    const min = toNumber(tier.min);
+    const max = tier.max == null ? Infinity : toNumber(tier.max);
+    if (price >= min && price < max) {
+      if (tier.minRating && rating < toNumber(tier.minRating)) return false;
+      if (tier.minSales && sales < toNumber(tier.minSales)) return false;
+      break;
+    }
+  }
+
+  // Comissão alta (20%+) muitas vezes é "isca" de vendedor com produto sem
+  // histórico. Exige um mínimo de vendas e nota para entrar.
+  if (commissionPct(p.commissionRate) >= 20) {
+    if (rating < toNumber(config?.highCommissionMinRating ?? 0)) return false;
+    if (sales < toNumber(config?.highCommissionMinSales ?? 0)) return false;
+  }
   return true;
 }
 
@@ -1086,7 +1280,11 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
   // Regra atual: nunca usar um item que ainda esteja dentro do cooldown.
   // Se não houver variedade suficiente, o catálogo fica menor em vez de
   // reapresentar produtos antigos.
-  const fresh = ranked.filter((r) => r.isFresh).slice(0, target * 6);
+  const freshAll = ranked.filter((r) => r.isFresh);
+  const fresh = freshAll.slice(0, target * 6);
+  // Itens de ticket alto pontuam menos no preço e poderiam ficar fora do corte
+  // acima: reinclui os melhores deles (R$ 60+) para as cotas por faixa enxergarem.
+  fresh.push(...freshAll.slice(target * 6).filter((r) => catalogMinPrice(r.p) >= 60).slice(0, target * 2));
   const repeatable = ranked.filter((r) => !r.isFresh).slice(0, target * 2);
   diagnostics.freshCandidates = fresh.length;
   diagnostics.repeatableCandidates = repeatable.length;
@@ -1094,6 +1292,7 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
 
   const results = [];
   const usedIds = new Set();
+  const selectedMeta = new Map(); // id -> { price, tag, ctier } do que já entrou
   let linkFailures = 0;
 
   function commissionTier(p) {
@@ -1140,8 +1339,21 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
 
     usedIds.add(id);
     results.push(normalizeProduct(p, affiliateLink));
+    selectedMeta.set(id, { price: catalogMinPrice(p), tag: inferTag(p.productName), ctier: commissionTier(p) });
     if (isHighCommission(p)) selectedHighCommission++;
     return true;
+  }
+
+  // Produtos FIXADOS: entram primeiro e ignoram o cooldown (mas não os filtros
+  // de qualidade). O motivo de algum não entrar fica em diagnostics.pinnedResult.
+  diagnostics.pinnedResult = [];
+  for (const p of nodes.filter((n) => n && n.__pinned)) {
+    const name = String(p.productName || p.itemId).slice(0, 100);
+    if (!p.itemId || !p.productLink || !p.imageUrl) { diagnostics.pinnedResult.push({ name, published: false, reason: 'faltam campos (link/imagem)' }); continue; }
+    if (!passesQualityBar(p, config)) { diagnostics.pinnedResult.push({ name, published: false, reason: 'não passou nos filtros (preço mínimo, nota 4,5+ ou tipo de loja)' }); continue; }
+    const ok = await tryAddProduct(p, { enforceCommissionCap: false });
+    if (ok) results[results.length - 1].pinned = true;
+    diagnostics.pinnedResult.push({ name, published: ok, reason: ok ? 'ok' : 'sem link de afiliado' });
   }
 
   // Categorias OBRIGATÓRIAS (mandatoryQuotas em bot-config.json, ex.: "Cabelo Liso").
@@ -1165,12 +1377,47 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
     }
   }
 
+  // FAIXAS DE PREÇO (priceTierQuotas em bot-config.json): vaga MÍNIMA por faixa,
+  // das mais caras para as mais baratas, para o catálogo não ficar 87% entre R$ 10
+  // e 30. Só entra quem passou no portão de qualidade da faixa (qualityByPriceTier:
+  // mais vendas + nota maior) e está fora do cooldown; dentro da faixa vale a
+  // pontuação geral (vendas, nota, desconto, comissão, custo-benefício). O que já
+  // entrou por outras regras conta para a cota.
+  const priceTiers = (Array.isArray(config.priceTierQuotas) ? config.priceTierQuotas : [])
+    .slice()
+    .sort((a, b) => toNumber(b.min) - toNumber(a.min));
+  diagnostics.priceTierTarget = {};
+  diagnostics.priceTierFilled = {};
+  for (const tier of priceTiers) {
+    const min = toNumber(tier.min);
+    const max = tier.max == null ? Infinity : toNumber(tier.max);
+    const label = String(tier.label || `${min}-${max}`);
+    const inTier = (price) => price >= min && price < max;
+    const quota = toNumber(tier.quota);
+    const already = [...selectedMeta.values()].filter((m) => inTier(m.price)).length;
+    const need = Math.min(quota - already, target - results.length);
+    diagnostics.priceTierTarget[label] = quota;
+    let filled = 0;
+    if (need > 0) {
+      for (const { p } of fresh) {
+        if (filled >= need) break;
+        if (!inTier(catalogMinPrice(p))) continue;
+        if (await tryAddProduct(p)) filled++;
+      }
+    }
+    diagnostics.priceTierFilled[label] = already + filled;
+    if (already + filled < quota) {
+      console.warn(`⚠️ Faixa "${label}": ${already + filled}/${quota} (poucos produtos com vendas/nota suficientes e fora do cooldown nesta rodada).`);
+    }
+  }
+
   // Primeiro garantimos algumas oportunidades de alta comissão. Essas vagas
   // são apenas uma parte do catálogo; elas não impedem a entrada de produtos
   // de baixa comissão quando forem melhores em preço/qualidade/vendas.
   for (const tier of ['30+', '20-29.99', '10-19.99']) {
-    const quota = Math.min(toNumber(commissionQuotas[tier]), target - results.length, maxHighCommission - selectedHighCommission);
-    if (quota <= 0) continue;
+    const alreadyInTier = [...selectedMeta.values()].filter((m) => m.ctier === tier).length;
+    const quota = Math.min(toNumber(commissionQuotas[tier]) - alreadyInTier, target - results.length, maxHighCommission - selectedHighCommission);
+    if (quota <= 0) { diagnostics.commissionQuotaFilled[tier] = alreadyInTier; continue; }
     let filled = 0;
 
     for (const { p } of fresh) {
@@ -1179,7 +1426,7 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
       if (await tryAddProduct(p, { enforceCommissionCap: false })) filled++;
     }
 
-    diagnostics.commissionQuotaFilled[tier] = filled;
+    diagnostics.commissionQuotaFilled[tier] = alreadyInTier + filled;
   }
 
   // Vaga garantida por categoria (categoryQuotas em bot-config.json).
@@ -1190,8 +1437,9 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
   const categoryQuotas = config.categoryQuotas || {};
   diagnostics.categoryQuotaFilled = {};
   for (const category of Object.keys(categoryQuotas)) {
-    const quota = Math.min(toNumber(categoryQuotas[category]), target - results.length);
-    if (quota <= 0) continue;
+    const alreadyInCategory = [...selectedMeta.values()].filter((m) => m.tag === category).length;
+    const quota = Math.min(toNumber(categoryQuotas[category]) - alreadyInCategory, target - results.length);
+    if (quota <= 0) { diagnostics.categoryQuotaFilled[category] = alreadyInCategory; continue; }
     let filled = 0;
     for (const pool of [fresh]) {
       for (const { p } of pool) {
@@ -1201,7 +1449,7 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
       }
       if (filled >= quota) break;
     }
-    diagnostics.categoryQuotaFilled[category] = filled;
+    diagnostics.categoryQuotaFilled[category] = alreadyInCategory + filled;
   }
 
   // Preenche o restante do alvo pela pontuação geral, somente com produtos frescos.
@@ -1314,7 +1562,11 @@ async function main() {
     trendingCategoryBoost: {},
     categoryQuotas: {},
     mandatoryKeywords: [],
-    mandatoryQuotas: {}
+    mandatoryQuotas: {},
+    pinnedProducts: [],
+    priceTierQuotas: [],
+    qualityByPriceTier: [],
+    premiumKeywords: []
   });
   const fixed = readJson(FIXED_FILE, []);
   const previous = readJson(OUTPUT_FILE, []);
