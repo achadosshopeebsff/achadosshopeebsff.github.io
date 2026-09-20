@@ -1240,12 +1240,13 @@
           ]);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
+          const MAX_PRICE_BRL = 1000; // foco em custo-benefício: nada acima de R$ 1.000 (o bot já filtra; aqui é garantia extra)
           state.products = Array.isArray(data) ? data.filter(p => {
             if (!p || !(p.title || p.productName) || !(p.affLink || p.affiliateLink || p.affiliateUrl || p.affiliate_url || p.aff_url || p.trackingLink || p.trackingUrl || p.productLink)) return false;
             const raw = String(p.now || '').replace(/[^0-9,.]/g, '');
             const price = raw.includes(',') ? Number(raw.replace(/\./g, '').replace(',', '.')) : Number(raw);
             const rating = Number(p.rating || 0);
-            return Number.isFinite(price) && price >= 10 && rating >= 4.5;
+            return Number.isFinite(price) && price >= 10 && price <= MAX_PRICE_BRL && rating >= 4.5;
           }) : [];
           const ids = new Set(state.products.map(productKey));
           const syncKey = state.lastSyncAt || 'init';

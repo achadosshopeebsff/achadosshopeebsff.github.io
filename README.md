@@ -42,16 +42,20 @@ Produtos de alisamento — chapinha/prancha alisadora, escova alisadora/secadora
 - Cota reservada: `mandatoryQuotas` → **Eletrônicos 60**, **Caixas de Som 20** (categoria nova; antes ficavam soltas em Eletrônicos), além de **Smartphones 40** (`categoryQuotas`, já existia).
 - Correção da classificação de smartphones: cartão de memória, pendrive/OTG, SSD, microfone de lapela e afins **não contam mais como “Smartphones”** (antes ocupavam as vagas de celular). Foram adicionados mais modelos reais (Galaxy A/M/S, Moto E/Edge/G, Realme, Infinix, Tecno, Xiaomi…).
 
-## Faixas de preço, comissão e qualidade
+## Custo-benefício: teto, faixas de preço, descontos, comissão e qualidade
 
-- **Preço mínimo continua R$ 10.** Diagnóstico do catálogo anterior: 87% entre R$ 10–30 e ~3% acima de R$ 60. Causas: rotação de ordenação com “menor preço” (`[2,5,1,4]`, agora `sortTypeRotation: [2,5,1,2]`) e palavras-chave só de itens baratos.
-- `priceTierQuotas`: vaga **mínima** por faixa — R$ 30–59: 90 · R$ 60–99: 40 · R$ 100–299: 40 · R$ 300–999: 30 · R$ 1.000–2.999: 20 · R$ 3.000+: 10 (230 de 500; o resto, inclusive R$ 10–29, vem da pontuação geral). Quem já entrou por outra regra conta para a cota.
-- `qualityByPriceTier` (portão): R$ 60–299 → nota 4,6+ e 50+ vendas · R$ 300–999 → 4,6+ e 30+ vendas · R$ 1.000+ → 4,7+ e 20+ vendas. Item caro sem histórico de venda **não entra**, por mais comissão que pague.
-- `premiumKeywords` (86 termos: celular, notebook, TV, geladeira, air fryer, games, bike, tênis…) são buscados em rodízio, ordenados por **vendas/relevância**, nunca por preço.
-- A pontuação ganhou a **comissão esperada por venda (R$ = preço × comissão)**, com teto baixo, para favorecer quem paga melhor sem passar por cima de nota e vendas.
-- **Comissão extra 30%+:** `commissionQuotas` → 30%+: **40** · 20–29,99%: **40** · 10–19,99%: 75; teto total de produtos com 10%+: `maxCommissionShare` **35%** (175 de 500). A coleta de comissão alta passou de 8 termos × 30 resultados para 44 termos em rodízio (16 por rodada) × 50 × 2 páginas. Produtos com **20%+ só entram com nota ≥ 4,6 e ≥ 10 vendas** (`highCommissionMinRating` / `highCommissionMinSales`), para não publicar “isca” de vendedor sem histórico.
-- Conferência a cada rodada em `sync-meta.json > diagnostics`: `priceTierFilled`, `commissionQuotaFilled`, `mandatoryQuotaFilled`, `pinnedResult`.
-- Custo: o bot faz mais chamadas à API por rodada (≈ +250). Se a Shopee limitar, o próprio coletor espera e tenta de novo; se ficar pesado, reduza `mandatoryKeywordsPerRun`, `premiumKeywordsPerRun` ou `highCommissionKeywordsPerRun`.
+**Regra de ouro: qualidade primeiro.** Nenhuma cota abaixo compra produto ruim: todo item precisa de **nota alta + prova de vendas**. Se faltar produto bom numa faixa, ela fica abaixo da cota (o bot publica um catálogo um pouco menor e 100% novo, nunca “completa” com item ruim).
+
+- **Preço:** piso **R$ 10** (`minPrice`) e **teto R$ 1.000** (`maxPrice`) — vale para `priceMin` e `priceMax` (anúncio “de R$ 800 a R$ 6.000” não entra). O site também esconde qualquer item acima de R$ 1.000 (`MAX_PRICE_BRL` no `index.html`), então nada acima do teto aparece mesmo antes do próximo ciclo do bot.
+- **Faixas graduais** (`priceTierQuotas`, vagas mínimas de 500): R$ 10–29: 90 · 30–49: 90 · 50–69: 70 · 70–99: 55 · 100–199: 50 · 200–499: 35 · 500–1.000: 20 (410 no total; o resto vem da pontuação geral). Quem já entrou por outra regra conta para a cota.
+- **Portão de qualidade** (`qualityByPriceTier`, vale para TODAS as faixas): R$ 10–29: nota 4,6+ e 20+ vendas · 30–69: 4,6+ e 30+ · 70–199: 4,6+ e 40+ · 200–499: 4,7+ e 30+ · 500+: 4,7+ e 20+. Nota máxima com 0–4 vendas **não passa**. Nota mínima geral: `minRating` **4,6**.
+- **Ótimos descontos** (`dealQuota`): vaga mínima de 100 para desconto **≥ 40% com nota ≥ 4,7 e ≥ 50 vendas**. Desconto sozinho não basta (o preço “de” pode ser inflado). A pontuação também premia “nota 4,9+ com 500+ vendas” e “desconto grande com nota/vendas altas”.
+- **Comissão** (`commissionQuotas`): **30%+: 50** · 20–29,99%: 40 · 10–19,99%: 60; teto de 35% do catálogo com comissão 10%+ (`maxCommissionShare`). Produtos com **20%+ só entram com nota ≥ 4,7 e ≥ 30 vendas** (`highCommissionMinRating` / `highCommissionMinSales`): comissão alta nunca compensa produto ruim. A pontuação considera a **comissão esperada por venda (R$ = preço × %)** com teto baixo.
+- **Smartphones:** só até R$ 1.000 e **a partir de R$ 250** (`tagMinPrice`; abaixo disso é brinquedo/golpe). Cartão de memória, pendrive, SSD, microfone etc. não contam como celular. Vagas garantidas de Smartphones: 30 (Notebooks: 10 — com o teto quase não existe).
+- **Ordenação da busca:** `sortTypeRotation: [2,5,1,2]` (o “menor preço primeiro” foi removido, era ele que empurrava só barato). `premiumKeywords` agora são produtos de ticket médio/custo-benefício (celular de entrada, TV/monitor, eletrodomésticos, cadeira gamer, tênis, perfume…). Palavras que só trazem item acima de R$ 1.000 (iPhone etc.) foram retiradas.
+- **Conferência** a cada rodada em `sync-meta.json > diagnostics`: `priceTierFilled`, `dealQuotaFilled`, `commissionQuotaFilled`, `mandatoryQuotaFilled`, `pinnedResult`.
+- **Produto fixado:** vale piso/teto de preço, nota mínima e loja do Brasil, mas **não** o mínimo de vendas por faixa (é escolha do dono).
+- Custo: o bot faz mais chamadas à API por rodada. Se ficar pesado, reduza `mandatoryKeywordsPerRun`, `premiumKeywordsPerRun` ou `highCommissionKeywordsPerRun`.
 
 ## Avaliações reais + vídeo no “Escanear”
 
