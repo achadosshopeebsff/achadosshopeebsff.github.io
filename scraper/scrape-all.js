@@ -523,7 +523,7 @@ function scoreProduct(p, config) {
   // Ótimo desconto COM prova de qualidade (nota alta + vendas): é o "achado" de custo-benefício.
   const dealBonus = discount >= 40 && rating >= 4.7 && sales >= 100 ? 8 : (discount >= 25 && rating >= 4.7 && sales >= 100 ? 3 : 0);
   const expectedCommission = price > 0 ? (price * commission) / 100 : 0;
-  const expectedCommissionScore = Math.min(10, Math.log10(1 + expectedCommission) * 6);
+  const expectedCommissionScore = Math.min(4, Math.log10(1 + expectedCommission) * 3);
 
   return priceScore + salesScore + ratingScore + discountScore + flashBonus +
     commissionScore + commissionBonus + ratingBonus + cheapQualityBonus +
@@ -1347,9 +1347,26 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
 
   let selectedHighCommission = 0;
 
+  // LIMITE MÁXIMO por faixa de preço (bot-config.json > priceCaps). As cotas de
+  // priceTierQuotas são MÍNIMOS; estes são TETOS de quantidade: o site é de
+  // produto barato, então itens de R$ 100+ / R$ 300+ entram só em quantidade moderada.
+  const priceCaps = (Array.isArray(config.priceCaps) ? config.priceCaps : [])
+    .map((c) => ({ min: toNumber(c.min), max: Math.floor(toNumber(c.maxShare) * target), label: String(c.label || `R$ ${c.min}+`) }))
+    .filter((c) => c.min > 0 && c.max >= 0);
+  diagnostics.priceCapMax = Object.fromEntries(priceCaps.map((c) => [c.label, c.max]));
+
   async function tryAddProduct(p, { enforceCommissionCap = true } = {}) {
     const id = String(p.itemId);
     if (usedIds.has(id)) return false;
+    {
+      const price = catalogMinPrice(p);
+      for (const cap of priceCaps) {
+        if (price < cap.min) continue;
+        let count = 0;
+        for (const m of selectedMeta.values()) if (m.price >= cap.min) count++;
+        if (count >= cap.max) return false;
+      }
+    }
     if (enforceCommissionCap && isHighCommission(p) && selectedHighCommission >= maxHighCommission) {
       return false;
     }
@@ -1505,6 +1522,15 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
 
   diagnostics.highCommissionSelected = selectedHighCommission;
   diagnostics.highCommissionCapReached = selectedHighCommission >= maxHighCommission && maxHighCommission > 0;
+  // Distribuição final por preço (para conferir no sync-meta.json se está barato o bastante).
+  {
+    const prices = [...selectedMeta.values()].map((m) => m.price);
+    const count = (a, b) => prices.filter((v) => v >= a && v < b).length;
+    diagnostics.priceDistribution = {
+      'ate R$ 29': count(0, 30), 'R$ 30-49': count(30, 50), 'R$ 50-99': count(50, 100),
+      'R$ 100-299': count(100, 300), 'R$ 300+': count(300, Infinity)
+    };
+  }
   diagnostics.affiliateLinkFailures = linkFailures;
   diagnostics.freshPublished = results.filter((r) => isFreshEnough(r.itemId, history, runCount, cooldownRuns)).length;
   diagnostics.repeatPublished = results.length - diagnostics.freshPublished;
