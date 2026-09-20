@@ -87,8 +87,8 @@
   },
   "_categoryQuotasNote": "vaga MINIMA garantida por categoria a cada ciclo, para itens de ticket maior (celular, notebook, geladeira) nao serem afogados por acessorio barato na pontuacao geral. Ajuste os numeros a vontade; nao impede a categoria de ter MAIS que a cota se pontuar bem.",
   "categoryQuotas": {
-    "Smartphones": 30,
-    "Notebooks": 10,
+    "Smartphones": 10,
+    "Notebooks": 0,
     "Eletrodomésticos": 25
   },
   "keywords": [
@@ -1328,28 +1328,28 @@
   "highCommissionMinSales": 30,
   "priceTierQuotas": [
     {
-      "label": "R$ 500–1.000",
-      "min": 500,
+      "label": "R$ 300–1.000",
+      "min": 300,
       "max": 1000.01,
-      "quota": 20
+      "quota": 10
     },
     {
-      "label": "R$ 200–499",
+      "label": "R$ 200–299",
       "min": 200,
-      "max": 500,
-      "quota": 35
+      "max": 300,
+      "quota": 8
     },
     {
       "label": "R$ 100–199",
       "min": 100,
       "max": 200,
-      "quota": 50
+      "quota": 20
     },
     {
       "label": "R$ 70–99",
       "min": 70,
       "max": 100,
-      "quota": 55
+      "quota": 40
     },
     {
       "label": "R$ 50–69",
@@ -1361,16 +1361,16 @@
       "label": "R$ 30–49",
       "min": 30,
       "max": 50,
-      "quota": 90
+      "quota": 110
     },
     {
       "label": "R$ 10–29",
       "min": 10,
       "max": 30,
-      "quota": 90
+      "quota": 130
     }
   ],
-  "_priceTierQuotasNote": "Vaga MÍNIMA por faixa de preço (piso R$ 10, teto R$ 1.000): 10–29 (90) · 30–49 (90) · 50–69 (70) · 70–99 (55) · 100–199 (50) · 200–499 (35) · 500–1.000 (20) = 410 de 500; o restante vem da pontuação geral (custo-benefício). Quem já entrou por outra regra conta para a cota. Faixa sem produtos que passem no portão de qualidade e fora do cooldown fica abaixo da cota (aviso no log e em sync-meta.json > diagnostics.priceTierFilled).",
+  "_priceTierQuotasNote": "Vaga MÍNIMA por faixa (piso R$ 10, teto R$ 1.000), focada em produto BARATO: R$ 10–29 (130) · 30–49 (110) · 50–69 (70) · 70–99 (40) · 100–199 (20) · 200–299 (8) · 300–1.000 (10) = 388 de 500; o resto vem da pontuação geral. Produto caro entra só em quantidade moderada (ver priceCaps).",
   "qualityByPriceTier": [
     {
       "min": 10,
@@ -1498,7 +1498,7 @@
     "copo termico 1 litro",
     "mochila escolar"
   ],
-  "premiumKeywordsPerRun": 40,
+  "premiumKeywordsPerRun": 20,
   "premiumPages": 2,
   "premiumLimitPerKeyword": 50,
   "_premiumKeywordsNote": "Termos de produtos de ticket médio (R$ 70–1.000) com custo-benefício: celulares de entrada, TV/monitor, eletrodomésticos, cadeira gamer, tênis, perfume etc. Buscados em rodízio, ordenados por VENDAS/relevância (nunca por preço). Só ACRESCENTAM candidatos; quem entra é decidido pelo teto, pelo portão de qualidade e pelas cotas.",
@@ -1514,5 +1514,18 @@
     "minSales": 50,
     "quota": 100
   },
-  "_dealQuotaNote": "Vaga mínima para 'ótimo desconto': desconto >= 40% E nota >= 4,7 E >= 50 vendas. Desconto sozinho não basta (o preço 'de' pode ser inflado); a prova de qualidade é o que segura."
+  "_dealQuotaNote": "Vaga mínima para 'ótimo desconto': desconto >= 40% E nota >= 4,7 E >= 50 vendas. Desconto sozinho não basta (o preço 'de' pode ser inflado); a prova de qualidade é o que segura.",
+  "priceCaps": [
+    {
+      "label": "R$ 100+",
+      "min": 100,
+      "maxShare": 0.15
+    },
+    {
+      "label": "R$ 300+",
+      "min": 300,
+      "maxShare": 0.05
+    }
+  ],
+  "_priceCapsNote": "LIMITE MÁXIMO de quantidade por preço (fração do catálogo): no máximo 15% dos produtos com R$ 100+ (75 de 500) e no máximo 5% com R$ 300+ (25 de 500). Vale para TODAS as regras (cotas, comissão, descontos, categorias e preenchimento geral). O restante (85%+) é produto de até R$ 99. Para liberar mais caro, aumente maxShare; para ficar ainda mais barato, diminua."
 }
