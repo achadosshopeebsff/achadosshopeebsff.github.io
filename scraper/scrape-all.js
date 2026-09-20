@@ -518,12 +518,17 @@ function scoreProduct(p, config) {
   // Comissão esperada por venda (R$ = preço x comissão): um produto de R$ 300
   // com 8% paga bem mais por venda que um de R$ 15 com 10%. Teto baixo (10) para
   // NÃO passar por cima de nota/vendas — qualidade continua mandando.
+  // "Super bem avaliado E muito vendido": nota 4,9+ com 500+ vendas.
+  const superRatedBonus = rating >= 4.9 && sales >= 500 ? 8 : (rating >= 4.8 && sales >= 200 ? 4 : 0);
+  // Ótimo desconto COM prova de qualidade (nota alta + vendas): é o "achado" de custo-benefício.
+  const dealBonus = discount >= 40 && rating >= 4.7 && sales >= 100 ? 8 : (discount >= 25 && rating >= 4.7 && sales >= 100 ? 3 : 0);
   const expectedCommission = price > 0 ? (price * commission) / 100 : 0;
   const expectedCommissionScore = Math.min(10, Math.log10(1 + expectedCommission) * 6);
 
   return priceScore + salesScore + ratingScore + discountScore + flashBonus +
     commissionScore + commissionBonus + ratingBonus + cheapQualityBonus +
-    perfectFindBonus + viralBonus + categoryBoost + expectedCommissionScore;
+    perfectFindBonus + viralBonus + categoryBoost + expectedCommissionScore +
+    superRatedBonus + dealBonus;
 }
 
 function normalizeProduct(product, affiliateLink) {
@@ -1210,10 +1215,19 @@ function dedupeEquivalentProducts(products, diagnostics) {
 const MIN_PRICE = 10;
 const MIN_RATING = 4.5;
 
-function passesQualityBar(p, config) {
+function passesQualityBar(p, config, opts = {}) {
   const minPrice = Math.max(0, toNumber(config?.minPrice ?? MIN_PRICE));
   const price = catalogMinPrice(p);
   if (!(price >= minPrice)) return false;
+
+  // TETO de preço (bot-config.json > maxPrice): foco em custo-benefício. Nenhuma
+  // variação do anúncio pode passar do teto (evita anúncio "de R$ 800 a R$ 6.000").
+  const maxPrice = toNumber(config?.maxPrice ?? 0);
+  if (maxPrice > 0 && (price > maxPrice || toNumber(p.priceMax) > maxPrice)) return false;
+
+  // Piso por categoria (tagMinPrice): "Smartphone" a R$ 60 é golpe/brinquedo, não celular.
+  const tagFloor = toNumber(config?.tagMinPrice?.[inferTag(p.productName)] ?? 0);
+  if (tagFloor > 0 && price < tagFloor) return false;
 
   const rating = ratingNumber(p.ratingStar);
   const minRating = toNumber(config?.minRating ?? MIN_RATING);
@@ -1226,7 +1240,7 @@ function passesQualityBar(p, config) {
   // maior (bot-config.json > qualityByPriceTier). Item caro sem histórico de
   // venda não entra, por mais comissão que pague.
   const sales = toNumber(p.sales);
-  for (const tier of Array.isArray(config?.qualityByPriceTier) ? config.qualityByPriceTier : []) {
+  for (const tier of opts.pinned ? [] : Array.isArray(config?.qualityByPriceTier) ? config.qualityByPriceTier : []) {
     const min = toNumber(tier.min);
     const max = tier.max == null ? Infinity : toNumber(tier.max);
     if (price >= min && price < max) {
@@ -1238,7 +1252,7 @@ function passesQualityBar(p, config) {
 
   // Comissão alta (20%+) muitas vezes é "isca" de vendedor com produto sem
   // histórico. Exige um mínimo de vendas e nota para entrar.
-  if (commissionPct(p.commissionRate) >= 20) {
+  if (!opts.pinned && commissionPct(p.commissionRate) >= 20) {
     if (rating < toNumber(config?.highCommissionMinRating ?? 0)) return false;
     if (sales < toNumber(config?.highCommissionMinSales ?? 0)) return false;
   }
@@ -1303,6 +1317,15 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
     return '';
   }
 
+  // "Ótimo desconto" com prova de qualidade (bot-config.json > dealQuota).
+  const dealCfg = config.dealQuota || {};
+  function isGreatDeal(p) {
+    if (!dealCfg || !toNumber(dealCfg.quota)) return false;
+    return toNumber(p?.priceDiscountRate) >= toNumber(dealCfg.minDiscount ?? 40) &&
+      ratingNumber(p?.ratingStar) >= toNumber(dealCfg.minRating ?? 4.7) &&
+      toNumber(p?.sales) >= toNumber(dealCfg.minSales ?? 50);
+  }
+
   function isHighCommission(p) {
     return commissionPct(p?.commissionRate) >= 10;
   }
@@ -1339,7 +1362,7 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
 
     usedIds.add(id);
     results.push(normalizeProduct(p, affiliateLink));
-    selectedMeta.set(id, { price: catalogMinPrice(p), tag: inferTag(p.productName), ctier: commissionTier(p) });
+    selectedMeta.set(id, { price: catalogMinPrice(p), tag: inferTag(p.productName), ctier: commissionTier(p), deal: isGreatDeal(p) });
     if (isHighCommission(p)) selectedHighCommission++;
     return true;
   }
@@ -1350,7 +1373,8 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
   for (const p of nodes.filter((n) => n && n.__pinned)) {
     const name = String(p.productName || p.itemId).slice(0, 100);
     if (!p.itemId || !p.productLink || !p.imageUrl) { diagnostics.pinnedResult.push({ name, published: false, reason: 'faltam campos (link/imagem)' }); continue; }
-    if (!passesQualityBar(p, config)) { diagnostics.pinnedResult.push({ name, published: false, reason: 'não passou nos filtros (preço mínimo, nota 4,5+ ou tipo de loja)' }); continue; }
+    // Fixado é escolha do dono: vale piso/teto de preço, nota mínima e loja do Brasil; não exige o mínimo de vendas por faixa.
+    if (!passesQualityBar(p, config, { pinned: true })) { diagnostics.pinnedResult.push({ name, published: false, reason: 'não passou nos filtros (preço entre R$ 10 e R$ 1.000, nota mínima ou tipo de loja)' }); continue; }
     const ok = await tryAddProduct(p, { enforceCommissionCap: false });
     if (ok) results[results.length - 1].pinned = true;
     diagnostics.pinnedResult.push({ name, published: ok, reason: ok ? 'ok' : 'sem link de afiliado' });
@@ -1409,6 +1433,24 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
     if (already + filled < quota) {
       console.warn(`⚠️ Faixa "${label}": ${already + filled}/${quota} (poucos produtos com vendas/nota suficientes e fora do cooldown nesta rodada).`);
     }
+  }
+
+  // ÓTIMOS DESCONTOS (dealQuota): vaga mínima para produto com desconto grande E
+  // nota alta E muitas vendas — o desconto sozinho não basta (pode ser preço
+  // "de" inflado); a prova de qualidade é o que segura.
+  diagnostics.dealQuotaTarget = toNumber(dealCfg.quota);
+  {
+    const already = [...selectedMeta.values()].filter((m) => m.deal).length;
+    const need = Math.min(toNumber(dealCfg.quota) - already, target - results.length);
+    let filled = 0;
+    if (need > 0) {
+      for (const { p } of fresh) {
+        if (filled >= need) break;
+        if (!isGreatDeal(p)) continue;
+        if (await tryAddProduct(p)) filled++;
+      }
+    }
+    diagnostics.dealQuotaFilled = already + filled;
   }
 
   // Primeiro garantimos algumas oportunidades de alta comissão. Essas vagas
@@ -1663,7 +1705,8 @@ async function main() {
         ? shopTypes.some((t) => allowed.has(t))
         : (config.allowLegacyPreviousWithoutShopType === true && p?.marketplace === 'BR');
       const ratingOk = rating >= Number(config.minRating || 4.5);
-      return price >= Number(config.minPrice || 10) && ratingOk && linkOk && shopOk && !shopNameLooksInternational(p?.shopName, config);
+      const maxOk = !(Number(config.maxPrice) > 0) || price <= Number(config.maxPrice);
+      return price >= Number(config.minPrice || 10) && maxOk && ratingOk && linkOk && shopOk && !shopNameLooksInternational(p?.shopName, config);
     });
     output = safePrevious;
     source = previousIsDynamic ? 'previous-dynamic-filtered' : 'previous-fallback-filtered';
