@@ -383,6 +383,11 @@ function inferTag(name) {
   // "Caixa de Som para Smartphone" não são celular.
   if (/caixa\s+de\s+som|caixinha\s+de\s+som|soundbar|sound\s?bar|subwoofer|\bspeaker\b/i.test(n)) return 'Caixas de Som';
 
+  // Religião e Fé — Bíblias (clássicas, de estudo, ilustradas, personalizadas),
+  // terço, devocional, quadros com versículo etc. Categoria própria para ter
+  // vaga garantida (mandatoryQuotas) e chip no site.
+  if (/b[ií]blia|b[ií]blic[oa]s?|ter[cç]o\b|ros[aá]rio|vers[ií]culo|crucifixo|nossa senhora|devocional|gospel|evang[eé]lic/i.test(n)) return 'Religião';
+
   // Smartphones — checado ANTES de Auto & Moto de propósito: "Motorola Moto
   // G84" tem "moto" no nome e seria capturado por engano como item de moto se
   // essa checagem viesse depois. IMPORTANTE: a palavra "celular"/"iphone"/
@@ -412,14 +417,31 @@ function inferTag(name) {
   // Cozinha
   if (/air ?fryer|panela|liquidificador|processador de alimentos|fatiador|descascador|forma de silicone|torneira|espremedor|utens[ií]lio.*cozinha|balan[cç]a.*cozinha/i.test(n)) return 'Cozinha';
 
+  // Cozinha — gadgets e utensílios que a regex acima não pegava (waffle, batedeira,
+  // desfiador, jogo de panelas, dispensador, faca, tábua, caneca/bule...).
+  if (/waffle|batedeira|\bmixer\b|sanduicheira|cafeteira|desfiador|dispensador|porta[- ]?tempero|organizador de temperos|jogo de panelas|kit de panelas|conjunto de panelas|\bfacas?\b|t[aá]bua de corte|escorredor|cuscuzeira|tapioqueira|ralador|abridor de latas?|\bcaneca\b|\bbule\b|marmit|pote de vidro|\bjarra\b|fritadeira|forma de bolo/i.test(n)) return 'Cozinha';
+
+  // Limpeza — kits de limpeza, produtos e máquinas de limpar a casa. Específica de
+  // propósito: "kit de limpeza facial/celular" NÃO é limpeza da casa, e "multiuso"
+  // sozinho aparece em bolsa/mochila/organizador.
+  if (
+    /(kit|conjunto)\s+(de\s+)?limpeza(?!.*(facial|pele|rosto|celular|fone|notebook|teclado|c[aâ]mera|lente|tela))|limpa[- ]?vidros|limpador\s+(de\s+)?(vidros?|mamadeiras?|ultrass[oô]nico|box|banheiro|piso|ralo)|limpadora?\s+ultrass[oô]nica|desengordurante|desinfetante|detergente|(kit|spray|pano|esponja|escova|limpador|produto)s?\s+(de\s+limpeza\s+)?multiuso|luvas?\s+(de\s+)?(nitrilo|limpeza|l[aá]tex|descart[aá]ve(l|is))|rolo\s+adesivo|removedor\s+de\s+pelos\s+(de\s+)?(pets?|roupas?|animais|sof[aá]s?)|spin\s?scrubber|escova\s+(el[eé]trica\s+)?(de\s+|para\s+)?(limpeza|ralos?|tampas?|vaso|piso|box|rejunte)|escova\s+5\s?em\s?1|vassoura|\brodo\b|\bmop\b|esponja\s+m[aá]gica|pano\s+(de\s+)?(microfibra|limpeza|ch[aã]o)|lava[- ]?jato|rob[oô]\s+aspirador|aspirador\s+(rob[oô]|port[aá]til|vertical|sem fio|de p[oó]|de carro)|m[aá]quina\s+(3\s?em\s?1|de\s+limpeza|a\s+vapor)|vaporizador\s+(de\s+)?(limpeza|port[aá]til)|sacos?\s+de\s+lixo/i.test(n)
+  ) return 'Limpeza';
+
   // Beleza
   if (/lip ?tint|batom|base l[ií]quida|blush|pincel|maquiagem|secadora|chapinha|s[eé]rum|skincare|corretivo|barbeador|beleza|cabelo|massageador facial|pistola de massagem/i.test(n)) return 'Beleza';
+
+  if (/body splash|perfume|hidratante|protetor solar|esfoliante|sab[oõ]nete facial|m[aá]scara facial|r[ií]mel|esmalte|fragr[aâ]ncia|kit skincare|secador de unha/i.test(n)) return 'Beleza';
 
   // Casa, Decoração e Organização (categoria nº1 em GMV)
   if (/papel de parede|luminaria|lumin[áa]ria|sapateira|tapete|caixa organizadora|espelho|cortina|len[cç]ol|organizador|garrafa t[eé]rmica|penteadeira|umidificador|ventilador|capa de chuva|\bmop\b|pote herm[eé]tico|almofada|\bcasa\b/i.test(n)) return 'Casa';
 
+  if (/lixeira|\brack\b|estante|prateleira|sacos?\s+(a\s+)?v[aá]cuo|vacuum|toalha|cobertor|edredom|travesseiro|cabide|varal|capacho|quadro decorativo|porta[- ]?retrato|centro de mesa|prato giratório|prato giratorio|banqueta|mesa dobr[aá]vel|jogo de cama|protetor de colch[aã]o|cesto|led strip|fita led/i.test(n)) return 'Casa';
+
   // Fitness / Bem-estar
   if (/whey|creatina|bcaa|fitness|academia|bicicleta erg|faixa el[aá]stica|pr[eé] ?treino|difusor|[oó]leo essencial|bioimped[aâ]ncia/i.test(n)) return 'Fitness';
+
+  if (/halter|corda de pular|tapete (de )?yoga|colchonete|dry ?fit|roda abdominal|coqueteleira|shaker|mini ?band|legging/i.test(n)) return 'Fitness';
 
   // Brinquedos e bebês
   if (/brinquedo|montessori|reborn|papelaria|caderno/i.test(n)) return 'Brinquedos';
@@ -437,11 +459,15 @@ function inferTag(name) {
     looksLikeNotebookAccessory(n)
   ) return 'Eletrônicos';
 
+  if (/suporte\s+(de\s+|para\s+)?celular|\btrip[eé]\b|magsafe|hub usb|caneta limpadora|kit de limpeza.*(celular|fone)|cabo (tipo|type)[- ]?c|usb[- ]?c\b/i.test(n)) return 'Eletrônicos';
+
   // Moda
   if (/chinel|t[eê]nis|cal[cç]a|bermuda|\broupa\b|\bmoda\b|vestido|cropped|blazer|coturno|moc[aa]ssim|lingerie|conjunto fitness|moletom|blusa|camiseta|jaqueta|bolsa|bijuteria|[oó]culos de sol|sand[aá]lia/i.test(n)) return 'Moda';
 
+  if (/\bcamisas?\b|\bpolo\b|oversized|loungewear|wide leg|pijama|cueca|\bmeias?\b|calcinha|suti[aã]|\bbon[eé]\b|\bcinto\b|carteira|mochila/i.test(n)) return 'Moda';
+
   // Ferramentas e utilidades gerais
-  if (/capacete|ferramenta|aspirador|limpeza/i.test(n)) return 'Acessórios';
+  if (/capacete|ferramenta|aspirador|limpeza|parafusadeira|furadeira|alicate/i.test(n)) return 'Acessórios';
 
   if (/devocional|livro/i.test(n)) return 'Livros';
   return 'Achado';
@@ -521,7 +547,8 @@ function scoreProduct(p, config) {
   // "Super bem avaliado E muito vendido": nota 4,9+ com 500+ vendas.
   const superRatedBonus = rating >= 4.9 && sales >= 500 ? 8 : (rating >= 4.8 && sales >= 200 ? 4 : 0);
   // Ótimo desconto COM prova de qualidade (nota alta + vendas): é o "achado" de custo-benefício.
-  const dealBonus = discount >= 40 && rating >= 4.7 && sales >= 100 ? 8 : (discount >= 25 && rating >= 4.7 && sales >= 100 ? 3 : 0);
+  const dealBonus = discount >= 60 && rating >= 4.7 && sales >= 75 ? 11
+    : (discount >= 40 && rating >= 4.7 && sales >= 100 ? 8 : (discount >= 25 && rating >= 4.7 && sales >= 100 ? 3 : 0));
   const expectedCommission = price > 0 ? (price * commission) / 100 : 0;
   const expectedCommissionScore = Math.min(4, Math.log10(1 + expectedCommission) * 3);
 
@@ -1317,13 +1344,29 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
     return '';
   }
 
-  // "Ótimo desconto" com prova de qualidade (bot-config.json > dealQuota).
-  const dealCfg = config.dealQuota || {};
-  function isGreatDeal(p) {
-    if (!dealCfg || !toNumber(dealCfg.quota)) return false;
-    return toNumber(p?.priceDiscountRate) >= toNumber(dealCfg.minDiscount ?? 40) &&
-      ratingNumber(p?.ratingStar) >= toNumber(dealCfg.minRating ?? 4.7) &&
-      toNumber(p?.sales) >= toNumber(dealCfg.minSales ?? 50);
+  // "Ótimo desconto" com PROVA de qualidade (bot-config.json > dealTiers, ou o
+  // dealQuota antigo). Cada degrau (ex.: 80%+, 60%+, 40%+, 30%+) exige nota e
+  // vendas mínimas — desconto grande sem vendas é isca e não conta.
+  const dealTiers = (Array.isArray(config.dealTiers) && config.dealTiers.length
+    ? config.dealTiers
+    : (config.dealQuota && toNumber(config.dealQuota.quota) ? [config.dealQuota] : []))
+    .map((t) => ({
+      minDiscount: toNumber(t.minDiscount ?? 40),
+      minRating: toNumber(t.minRating ?? 4.7),
+      minSales: toNumber(t.minSales ?? 50),
+      quota: toNumber(t.quota)
+    }))
+    .sort((x, y) => y.minDiscount - x.minDiscount);
+  // Maior desconto (em %) que o produto COMPROVA (0 = nenhum degrau atendido).
+  function provenDiscount(p) {
+    const discount = toNumber(p?.priceDiscountRate);
+    const rating = ratingNumber(p?.ratingStar);
+    const sales = toNumber(p?.sales);
+    let best = 0;
+    for (const t of dealTiers) {
+      if (discount >= t.minDiscount && rating >= t.minRating && sales >= t.minSales) best = Math.max(best, t.minDiscount);
+    }
+    return best;
   }
 
   function isHighCommission(p) {
@@ -1379,7 +1422,7 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
 
     usedIds.add(id);
     results.push(normalizeProduct(p, affiliateLink));
-    selectedMeta.set(id, { price: catalogMinPrice(p), tag: inferTag(p.productName), ctier: commissionTier(p), deal: isGreatDeal(p) });
+    selectedMeta.set(id, { price: catalogMinPrice(p), tag: inferTag(p.productName), ctier: commissionTier(p), deal: provenDiscount(p) });
     if (isHighCommission(p)) selectedHighCommission++;
     return true;
   }
@@ -1452,22 +1495,28 @@ async function buildDynamicCatalog(nodes, config, diagnostics, history, runCount
     }
   }
 
-  // ÓTIMOS DESCONTOS (dealQuota): vaga mínima para produto com desconto grande E
-  // nota alta E muitas vendas — o desconto sozinho não basta (pode ser preço
-  // "de" inflado); a prova de qualidade é o que segura.
-  diagnostics.dealQuotaTarget = toNumber(dealCfg.quota);
-  {
-    const already = [...selectedMeta.values()].filter((m) => m.deal).length;
-    const need = Math.min(toNumber(dealCfg.quota) - already, target - results.length);
+  // ÓTIMOS DESCONTOS em degraus (dealTiers): vagas mínimas CUMULATIVAS — p.ex.
+  // 80%+: 25, 60%+: 70, 40%+: 150, 30%+: 230 (um item de 80% conta em todos os
+  // degraus). Do maior desconto para o menor; só entra com prova de qualidade.
+  diagnostics.dealTierTarget = {};
+  diagnostics.dealTierFilled = {};
+  for (const tier of dealTiers) {
+    const label = `${tier.minDiscount}%+`;
+    diagnostics.dealTierTarget[label] = tier.quota;
+    const already = [...selectedMeta.values()].filter((m) => m.deal >= tier.minDiscount).length;
+    const need = Math.min(tier.quota - already, target - results.length);
     let filled = 0;
     if (need > 0) {
       for (const { p } of fresh) {
         if (filled >= need) break;
-        if (!isGreatDeal(p)) continue;
+        if (provenDiscount(p) < tier.minDiscount) continue;
         if (await tryAddProduct(p)) filled++;
       }
     }
-    diagnostics.dealQuotaFilled = already + filled;
+    diagnostics.dealTierFilled[label] = already + filled;
+    if (already + filled < tier.quota) {
+      console.warn(`⚠️ Desconto ${label}: ${already + filled}/${tier.quota} (poucos produtos com desconto grande E nota/vendas suficientes nesta rodada).`);
+    }
   }
 
   // Primeiro garantimos algumas oportunidades de alta comissão. Essas vagas
@@ -1599,7 +1648,7 @@ function writeSyncMeta({ startedAt, completedAt, productsCount, source, diagnost
 async function main() {
   const config = readJson(CONFIG_FILE, {
     refreshIntervalMinutes: 30,
-    maxProducts: 500,
+    maxProducts: 600,
     minDynamicProducts: 250,
     pagesPerKeyword: 1,
     limitPerQuery: 50,
@@ -1633,6 +1682,7 @@ async function main() {
     mandatoryQuotas: {},
     pinnedProducts: [],
     priceTierQuotas: [],
+    dealTiers: [],
     qualityByPriceTier: [],
     premiumKeywords: []
   });
