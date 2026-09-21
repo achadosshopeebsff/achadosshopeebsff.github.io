@@ -1163,7 +1163,7 @@
         if (state.tagFilter && !counts.has(state.tagFilter)) { state.tagFilter = ''; applySearch(); }
         const tags = [...counts.entries()]
           .sort((a, b) => (a[0] === PINNED_TAG ? -1 : b[0] === PINNED_TAG ? 1 : b[1] - a[1]))
-          .slice(0, 8);
+          .slice(0, 14); // o menu de categorias rola na horizontal; com Limpeza, Religião, Cozinha etc. cabem mais chips
         const sig = `${state.tagFilter}|${tags.map(([t, c]) => `${t}:${c}`).join(',')}`;
         if (sig === state.chipsSig) return;
         state.chipsSig = sig;
