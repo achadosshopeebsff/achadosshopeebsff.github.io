@@ -1,15 +1,15 @@
 {
   "status": "degraded",
-  "source": "fixed-fallback",
+  "source": "previous-fallback-filtered",
   "intervalMinutes": 30,
-  "startedAt": "2026-11-11T13:56:47.230Z",
-  "completedAt": "2026-11-11T13:56:47.574Z",
-  "nextUpdateAt": "2026-11-11T14:26:47.574Z",
-  "productsCount": 19,
-  "runCount": 1077,
+  "startedAt": "2026-11-11T21:11:43.304Z",
+  "completedAt": "2026-11-11T21:11:43.804Z",
+  "nextUpdateAt": "2026-11-11T21:41:43.804Z",
+  "productsCount": 0,
+  "runCount": 1078,
   "diagnostics": {
     "apiOk": false,
-    "runCount": 1077,
+    "runCount": 1078,
     "keywordCounts": {},
     "topPerformingCount": 0,
     "candidatesRaw": 0,
@@ -24,10 +24,7 @@
     "errors": [
       "checagem inicial: [10000] Erro interno da Shopee. Costuma se resolver sozinho na próxima execução."
     ],
-    "duplicatesDroppedExact": 0,
-    "duplicatesComparedAcrossStores": 0,
-    "uniqueCandidatesAfterDedupe": 19,
     "dynamicPublished": 0,
-    "historyEntries": 7444
+    "historyEntries": 7283
   }
 }
